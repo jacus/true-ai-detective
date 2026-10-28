@@ -220,8 +220,9 @@ def web_build() -> None:
 def web(web_build: None, api: str) -> Iterator[str]:
     """The real web app (`next start`), relaying the chat to the real api."""
     port = _free_port()
+    # The Next binary itself, not `npm run start`: npm would leave next-server orphaned on terminate.
     proc = subprocess.Popen(
-        ["npm", "run", "start", "--", "--hostname", "127.0.0.1", "--port", str(port)],
+        ["node_modules/.bin/next", "start", "--hostname", "127.0.0.1", "--port", str(port)],
         cwd=WEB_DIR,
         env={**os.environ, "DETECTIVE_API_URL": api},
         stdout=subprocess.DEVNULL,
