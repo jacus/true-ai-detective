@@ -6,6 +6,7 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -41,8 +42,45 @@ def _stop(proc: subprocess.Popen[bytes]) -> None:
 
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
+    """Throwaway Postgres, migrated with the real Alembic migrations."""
     with PostgresContainer(PG_IMAGE, driver=None) as pg:
-        yield pg.get_connection_url()
+        url = pg.get_connection_url()
+        subprocess.run(["alembic", "upgrade", "head"], env={**os.environ, "DATABASE_URL": url}, check=True)
+        yield url
+
+
+def invite(
+    database_url: str, email: str, name: str = "Ann Client", role: str = "client", ttl_hours: int = 72
+) -> str:
+    """Create an invite with the real admin CLI and return its token."""
+    link = subprocess.run(
+        ["detective", "invite", email, "--name", name, "--role", role, "--ttl-hours", str(ttl_hours)],
+        env={**os.environ, "DATABASE_URL": database_url},
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return link.rsplit("/", 1)[1]
+
+
+def unique_email(prefix: str = "client") -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}@example.com"
+
+
+def session_cookie(response: httpx.Response) -> str:
+    """The `detective_session=...` pair from a response, ready to send back as a Cookie header."""
+    for header in response.headers.get_list("set-cookie"):
+        if header.startswith("detective_session="):
+            return header.split(";", 1)[0]
+    raise AssertionError(f"no session cookie in {response.headers.get_list('set-cookie')}")
+
+
+def sign_up(api: str, database_url: str, email: str, password: str, role: str = "client") -> str:
+    """Invite + redeem through the real API; returns the session cookie."""
+    token = invite(database_url, email, role=role)
+    response = httpx.post(f"{api}/auth/invites/redeem", json={"token": token, "password": password})
+    assert response.status_code == 204, response.text
+    return session_cookie(response)
 
 
 @pytest.fixture(scope="session")
@@ -99,7 +137,7 @@ def web(web_build: None, api: str) -> Iterator[str]:
     proc = subprocess.Popen(
         ["npm", "run", "start", "--", "--hostname", "127.0.0.1", "--port", str(port)],
         cwd=WEB_DIR,
-        env={**os.environ, "DETECTIVE_AGENT_URL": f"{api}/agent"},
+        env={**os.environ, "DETECTIVE_API_URL": api},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

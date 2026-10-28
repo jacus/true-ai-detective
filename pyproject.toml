@@ -6,13 +6,19 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "ag-ui-langgraph>=0.0.47",
+    "alembic>=1.20.1",
     "fastapi[standard]>=0.162.0",
     "langchain>=1.4.7",
     "langchain-openai>=1.7.3",
     "langgraph>=1.2.18",
     "psycopg[binary]>=3.3.6",
+    "pwdlib[argon2]>=0.3.1",
     "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2.1.6",
 ]
+
+[project.scripts]
+detective = "detective.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
@@ -35,3 +41,22 @@ line-length = 110
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+
+[tool.alembic]
+# Migrations live in migrations/versions; the DB URL comes from Settings (see migrations/env.py).
+script_location = "%(here)s/migrations"
+prepend_sys_path = ["."]
+
+# Keep generated migrations lint- and format-clean.
+[[tool.alembic.post_write_hooks]]
+name = "ruff_fix"
+type = "module"
+module = "ruff"
+options = "check --fix REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_format"
+type = "module"
+module = "ruff"
+options = "format REVISION_SCRIPT_FILENAME"

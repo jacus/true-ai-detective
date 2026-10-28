@@ -18,7 +18,17 @@ setup:
 # Start Postgres and the API with auto-reload on http://localhost:8000
 dev:
     docker compose up -d --wait db
+    uv run alembic upgrade head
     uv run fastapi dev src/detective/main.py
+
+# Create a migration from model changes (needs the local DB: `docker compose up -d db`)
+migration message:
+    uv run alembic upgrade head
+    uv run alembic revision --autogenerate -m "{{message}}"
+
+# Invite someone locally, e.g. `just invite me@example.com "My Name" owner`
+invite email name role="client":
+    uv run detective invite {{email}} --name "{{name}}" --role {{role}}
 
 # Start the web chat with hot reload on http://localhost:3000 (talks to `just dev` on :8000)
 web:
@@ -41,7 +51,7 @@ check:
     uv run ruff check .
     uv run ruff format --check .
     uv run ty check
-    cd web && npx biome check && npx tsc --noEmit
+    cd web && npx next typegen >/dev/null && npx biome check && npx tsc --noEmit
 
 # Shift Zero gate CLI from the installed Claude Code plugin (e.g. `just szero status`, `just szero gate`)
 szero *args:
