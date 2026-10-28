@@ -19,7 +19,7 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 |---|---|---|
 | D1 | Case realism | Real OSINT, plus your own known-answer cases for tests and evals |
 | D2 | OSINT boundary | Anything reachable. The detective may ask the client for extra access (API keys, logins), stored encrypted and scoped per client (S14) |
-| D3 | LLM provider | OpenAI via LangChain `init_chat_model`. Key verified; available: `gpt-5.4-mini`/`gpt-5.4-nano` (chat + vision), `text-embedding-3-small/large`, `gpt-image-2` family |
+| D3 | LLM provider | OpenAI via LangChain `init_chat_model`. **Very cheap models only**: `gpt-5.4-nano` by default (`gpt-5.4-mini` only if nano demonstrably can't do a task), `text-embedding-3-small`, cheapest `gpt-image` tier. Tests use fake models, never paid calls |
 | D4 | Model calls | Multimodal chat, separate vision extraction step, image generation, embeddings for RAG |
 | D5 | Wrappers | **None.** Libraries used as documented |
 | D6 | UI | React + CopilotKit + AG-UI, FastAPI agent backend |
@@ -34,8 +34,7 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 
 ### Open decisions (settled in their story)
 
-- **S3:** how CopilotKit's runtime sits between Next.js and FastAPI, and how the session cookie flows (follow CopilotKit's documented LangGraph-Python setup)
-- **DB backups:** Railway backup schedules need a Pro workspace (currently not Pro; PITR doesn't support the pgvector image). Options: upgrade to Pro, or scheduled `pg_dump` to the Railway Bucket once it exists (S7)
+- **S3b/S4:** how the session cookie flows browser → Next.js (CopilotRuntime) → FastAPI `/agent`
 - **S7:** local S3-compatible storage (MinIO vs alternatives)
 - **S12:** how the Python graph calls JEV. With the Gateway key it's only callable from the TypeScript AI SDK; from Python it needs TypeSafe's `typesafe-sdk` with a `TYPESAFE_API_KEY`. Alternative: route with an OpenAI model
 - **S13:** search API provider (Tavily / Brave / Exa)
@@ -62,7 +61,7 @@ Browser ── Next.js + CopilotKit (web service)
           Postgres + pgvector (RLS, checkpoints, audit)     S3 bucket (evidence files, per-case prefix)
 ```
 
-Current state: FastAPI app with `GET /health` (DB round-trip + pgvector availability), deployed at https://api-production-fc37.up.railway.app (auto-deploy from `main`). Local: `just dev`, `just test`, `just check`; deployed: `just smoke <url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod; `Settings` (pydantic-settings) types our own config.
+Current state: FastAPI app deployed at https://api-production-fc37.up.railway.app (auto-deploy from `main`): `GET /health` (DB round-trip + pgvector) and `POST /agent` (AG-UI stream from a one-node LangGraph detective on `gpt-5.4-nano`, in-memory checkpointer). Local: `just dev`, `just test`, `just check`; deployed: `just smoke <url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod (`OPENAI_API_KEY` set as a Railway secret, `preserve()` in IaC); `Settings` (pydantic-settings) types our own config.
 
 ---
 
@@ -74,7 +73,8 @@ Current state: FastAPI app with `GET /health` (DB round-trip + pgvector availabi
 |---|---|---|---|
 | ✅ | **S1 Walking skeleton (local).** As a dev, I can boot the API and DB with one command. | `just dev` → `GET /health` reports DB + pgvector; 503 when DB is down; e2e tests boot a real server against a throwaway pgvector container | uv, ruff, ty, just, docker compose, testcontainers, Shift Zero |
 | ✅ | **S2 Deployed skeleton.** As the owner, I can open the API on a public Railway URL. | https://api-production-fc37.up.railway.app/health green (`just smoke <url>`); data survived api and DB redeploys; public DB proxy removed; Railway healthcheck guards deploys | Railway IaC (`railway config`), Railpack, volumes, variable references, private networking |
-| ⬜ | **S3 Hello detective.** As a visitor, I chat with a one-node LangGraph detective in the browser and see the reply stream. | Playwright: type a message → streamed reply (fake model in tests, real OpenAI in dev); web service on Railway | LangGraph basics, `init_chat_model`, AG-UI, CopilotKit, Next.js, Playwright |
+| ✅ | **S3a Detective agent.** As a client app, I can talk to a one-node LangGraph detective over AG-UI and get a streamed reply. | `POST /agent` streams AG-UI events (e2e against a fake OpenAI server via `OPENAI_BASE_URL`; asserts `gpt-5.4-nano` + detective persona); deployed smoke makes one real nano call | LangGraph `StateGraph`, `init_chat_model`, `ag-ui-langgraph`, AG-UI events, SSE |
+| ⬜ | **S3b Chat in the browser.** As a visitor, I chat with the detective in a web page and see the reply stream. | Playwright: type a message → streamed reply (fake model); `web` service on Railway | Next.js, CopilotKit (`CopilotRuntime` + `HttpAgent` → `/agent`), Playwright |
 
 ### M1 — Clients, cases & isolation
 
@@ -114,3 +114,4 @@ Current state: FastAPI app with `GET /health` (DB round-trip + pgvector availabi
 | ⬜ | **S20 OSINT MCP server.** Untrusted web tools run in a separate MCP service with no DB access; I can also use it from Claude Code. | Detective uses tools via MCP; the MCP service has no DB credentials (checked); Claude Code can call it | MCP server, `langchain-mcp-adapters`, Railway private networking |
 | ⬜ | **S21 Oversight.** As the owner I'm alerted to suspicious behaviour; deterministic controls block it even when oversight misses. | Injected attack → blocked by controls + alert raised; with oversight disabled → still blocked | Second agent as monitor, alerting, audit queries |
 | ⬜ | **S22 Red-team suite.** One command proves isolation, injection resistance and recovery from failed or resumed workflows. | Suite green via one `just` recipe | Adversarial testing |
+| ⬜ | **S23 DB backups.** As the owner, a lost volume doesn't lose case data. | Restore drill: backup → new DB → app healthy with the restored data | Railway Pro backups or scheduled `pg_dump` to the bucket |

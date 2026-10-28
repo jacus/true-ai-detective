@@ -47,6 +47,8 @@ export default defineRailway(() => {
     env: {
       // Private network only: the app never talks to the DB over the public proxy.
       DATABASE_URL: pgvector.env.DATABASE_URL_PRIVATE,
+      // Secret set with `railway variable set OPENAI_API_KEY --stdin --service api`; value stays on Railway.
+      OPENAI_API_KEY: preserve(),
     },
   });
 

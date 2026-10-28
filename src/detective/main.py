@@ -1,9 +1,10 @@
 import psycopg
+from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 from fastapi import FastAPI, Response, status
 
-from detective.settings import Settings
+from detective.agent import graph
+from detective.settings import settings
 
-settings = Settings()
 app = FastAPI(title="True AI Detective")
 
 
@@ -22,3 +23,11 @@ async def health(response: Response) -> dict[str, str]:
 
     pgvector = "available" if row and row[0] else "missing"
     return {"status": "ok", "database": "ok", "pgvector": pgvector}
+
+
+# AG-UI endpoint: POST /agent streams the detective's run as Server-Sent Events.
+add_langgraph_fastapi_endpoint(
+    app,
+    LangGraphAgent(name="detective", description="True AI Detective", graph=graph),
+    path="/agent",
+)
