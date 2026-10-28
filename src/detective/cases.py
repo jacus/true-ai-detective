@@ -9,6 +9,7 @@ from typing import Annotated, Any
 import psycopg
 from ag_ui_langgraph.utils import langchain_messages_to_agui
 from fastapi import APIRouter, Depends
+from fastapi.concurrency import run_in_threadpool
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg.rows import DictRow, dict_row
@@ -22,6 +23,7 @@ from detective.auth import current_user
 from detective.db import get_db
 from detective.models import Case, User
 from detective.settings import settings
+from detective.storage import delete_case_files
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -82,7 +84,8 @@ async def reset_current_case(
     user: Annotated[User, Depends(current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CaseOut:
-    """Delete the case and its whole conversation for good, then start a fresh case."""
+    """Delete the case, its evidence files and its whole conversation for good, then start a fresh case."""
+    await run_in_threadpool(delete_case_files, case.id)  # rows go with the case (ON DELETE CASCADE)
     async with case_checkpointer(user.id) as saver:
         await saver.adelete_thread(str(case.id))  # needs the case row, so before deleting it (RLS)
     await db.delete(case)

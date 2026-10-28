@@ -76,6 +76,33 @@ def test_deployed_case_resets_then_remembers_the_conversation() -> None:
     assert saved[0]["content"] == "Smoke test: say hello in five words."
 
 
+def test_deployed_evidence_file_round_trips_through_the_bucket() -> None:
+    cookie = log_in()
+    content = f"Smoke evidence {uuid.uuid4()}".encode()
+
+    created = httpx.post(
+        f"{API_URL}/cases/current/evidence/files",
+        files={"file": ("smoke.txt", content, "text/plain")},
+        headers={"cookie": cookie},
+        timeout=30,
+    )
+    assert created.status_code == 201, created.text
+    evidence_id = created.json()["id"]
+    listed = httpx.get(f"{API_URL}/cases/current/evidence", headers={"cookie": cookie}, timeout=15).json()
+    assert evidence_id in [e["id"] for e in listed]
+
+    # The api redirects to a presigned URL on the Railway Bucket; the bucket itself stays private.
+    redirect = httpx.get(
+        f"{API_URL}/cases/current/evidence/{evidence_id}/file", headers={"cookie": cookie}, timeout=15
+    )
+    assert redirect.status_code == 307
+    signed = redirect.headers["location"]
+    download = httpx.get(signed, timeout=30)
+    assert download.status_code == 200
+    assert download.content == content
+    assert httpx.get(signed.split("?", 1)[0], timeout=15).status_code == 403
+
+
 def test_deployed_web_runtime_refuses_anonymous_replay() -> None:
     case_id = httpx.get(f"{API_URL}/cases/current", headers={"cookie": log_in()}, timeout=15).json()["id"]
     connect = run_input("")

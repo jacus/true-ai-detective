@@ -15,5 +15,19 @@ services:
       timeout: 3s
       retries: 15
 
+  # S3-compatible storage for evidence files (Railway Buckets in prod). Console on http://localhost:9001
+  s3:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: detective
+      RUSTFS_SECRET_KEY: detective-secret
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - s3data:/data
+
 volumes:
   pgdata:
+  s3data:

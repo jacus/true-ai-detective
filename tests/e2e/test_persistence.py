@@ -11,15 +11,17 @@ def history(api: str, cookie: str) -> list[tuple[str, str]]:
     return [(m["role"], m["content"]) for m in messages]
 
 
-def test_the_conversation_survives_an_api_restart(database_url: str, fake_openai: str) -> None:
-    proc, api = start_api(database_url, fake_openai)
+def test_the_conversation_survives_an_api_restart(
+    database_url: str, fake_openai: str, s3_endpoint: str
+) -> None:
+    proc, api = start_api(database_url, fake_openai, s3_endpoint)
     try:
         cookie = sign_up(api, database_url, unique_email(), PASSWORD)
         run_agent(api, cookie, "The thief wore red boots")
     finally:
         _stop(proc)
 
-    proc, api = start_api(database_url, fake_openai)  # a fresh process: nothing in memory
+    proc, api = start_api(database_url, fake_openai, s3_endpoint)  # a fresh process: nothing in memory
     try:
         assert history(api, cookie) == [
             ("user", "The thief wore red boots"),

@@ -1,4 +1,4 @@
-import { defineRailway, github, image, preserve, project, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, image, preserve, project, ref, service, volume } from "railway/iac";
 
 // Railway Infrastructure as Code: the whole `true-ai-detective` project.
 // Preview with `railway config plan`, apply with `railway config apply`.
@@ -37,6 +37,9 @@ export default defineRailway(() => {
     },
   });
 
+  // Evidence files (S3-compatible, private; the api hands out presigned URLs). Amsterdam: next to europe-west4.
+  const evidence = bucket("evidence", { region: "ams" });
+
   // FastAPI app, built by Railpack from this repo on every push to main.
   const api = service("api", {
     source: github("jacus/true-ai-detective", { branch: "main" }),
@@ -59,6 +62,13 @@ export default defineRailway(() => {
       APP_DB_PASSWORD: preserve(),
       // Secret set with `railway variable set OPENAI_API_KEY --stdin --service api`; value stays on Railway.
       OPENAI_API_KEY: preserve(),
+      // The evidence bucket, in boto3's own variable names (boto3 reads them; the bucket name is ours).
+      EVIDENCE_BUCKET: ref(evidence, "BUCKET"),
+      AWS_ENDPOINT_URL: ref(evidence, "ENDPOINT"),
+      AWS_ACCESS_KEY_ID: ref(evidence, "ACCESS_KEY_ID"),
+      AWS_SECRET_ACCESS_KEY: ref(evidence, "SECRET_ACCESS_KEY"),
+      AWS_DEFAULT_REGION: ref(evidence, "REGION"),
+      S3_ADDRESSING_STYLE: "virtual", // Railway Buckets use virtual-hosted–style URLs
     },
   });
 
@@ -77,6 +87,6 @@ export default defineRailway(() => {
 
   return project("true-ai-detective", {
     variables: { managed: true },
-    resources: [pgvector, pgvectorVolume, api, web],
+    resources: [pgvector, pgvectorVolume, evidence, api, web],
   });
 });

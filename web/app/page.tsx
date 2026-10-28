@@ -1,5 +1,10 @@
 import { Suspense } from "react";
-import { getCaseMessages, getCurrentCase, requireUser } from "@/lib/api";
+import {
+  getCaseEvidence,
+  getCaseMessages,
+  getCurrentCase,
+  requireUser,
+} from "@/lib/api";
 import { DetectiveChat } from "./detective-chat";
 
 export default function Home() {
@@ -16,12 +21,16 @@ export default function Home() {
 async function Chat() {
   const user = await requireUser();
   const currentCase = await getCurrentCase();
-  const messages = await getCaseMessages();
+  const [messages, evidence] = await Promise.all([
+    getCaseMessages(),
+    getCaseEvidence(),
+  ]);
   return (
     <DetectiveChat
       user={user}
       caseId={currentCase.id}
       initialMessages={messages}
+      initialEvidence={evidence}
     />
   );
 }

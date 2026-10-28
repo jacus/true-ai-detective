@@ -61,3 +61,24 @@ export async function getCaseMessages(): Promise<Message[]> {
     throw new Error(`api /cases/current/messages failed: ${response.status}`);
   return response.json();
 }
+
+export type Evidence = {
+  id: string;
+  kind: "file" | "link" | "pin";
+  label: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  url: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  created_at: string;
+};
+
+/** Files, links and map pins attached to the case (file bytes are fetched separately, via a presigned URL). */
+export async function getCaseEvidence(): Promise<Evidence[]> {
+  const response = await fromApi("/cases/current/evidence");
+  if (!response || response.status === 401) redirect("/login");
+  if (!response.ok)
+    throw new Error(`api /cases/current/evidence failed: ${response.status}`);
+  return response.json();
+}
