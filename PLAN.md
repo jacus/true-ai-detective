@@ -62,7 +62,7 @@ Browser ── Next.js + CopilotKit (web service)
           Postgres + pgvector (RLS, checkpoints, audit)     S3 bucket (evidence files, per-case prefix)
 ```
 
-Current state: FastAPI app with `GET /health` (DB round-trip + pgvector availability), deployed at https://<your-api>.up.railway.app (auto-deploy from `main`). Local: `just dev`, `just test`, `just check`; deployed: `just smoke <url>`; infra: `railway config plan/apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod; `Settings` (pydantic-settings) types our own config.
+Current state: FastAPI app with `GET /health` (DB round-trip + pgvector availability), deployed at https://<your-api>.up.railway.app (auto-deploy from `main`). Local: `just dev`, `just test`, `just check`; deployed: `just smoke <url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod; `Settings` (pydantic-settings) types our own config.
 
 ---
 

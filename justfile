@@ -2,6 +2,9 @@
 # see the same real env vars locally as on Railway. A missing .env is fine.
 set dotenv-load
 
+# bash (not sh): Railway's IaC SDK finds the CLI via bash's `$_` variable.
+set shell := ["bash", "-cu"]
+
 # List recipes
 default:
     @just --list
@@ -18,6 +21,10 @@ test *args:
 # Smoke-test a deployed environment, e.g. `just smoke https://api-production-xxxx.up.railway.app`
 smoke base_url:
     SMOKE_BASE_URL={{base_url}} uv run pytest tests/smoke -q
+
+# Check Railway matches .railway/railway.ts (exit 0 = in sync, 2 = changes pending)
+infra-plan:
+    railway config plan --detailed-exit-code
 
 # Lint, format check and type check
 check:

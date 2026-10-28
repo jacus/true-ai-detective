@@ -15,7 +15,7 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - static:   `just check` (ruff lint, ruff format check, ty)
 - scoped:   `just test tests/e2e/test_health.py` · `just test -k <name>` · `just test path::test_name`
 - smoke:    `just smoke https://<your-api>.up.railway.app` (deployed env; Railway auto-deploys `main`, build+healthcheck ~4–5 min)
-- infra:    `railway config plan` (must print "already up to date" when code matches Railway)
+- infra:    `just infra-plan` (exit 0 = Railway matches `.railway/railway.ts`; apply with `railway config apply`)
 - teardown: `just down` (add `-v` to wipe the DB volume)
 
 ## E2E surfaces
