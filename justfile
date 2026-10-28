@@ -5,6 +5,9 @@ set dotenv-load
 # bash (not sh): Railway's IaC SDK finds the CLI via bash's `$_` variable.
 set shell := ["bash", "-cu"]
 
+# Local-only password for the `detective_app` DB role (migrations create it). Railway sets a real secret.
+export APP_DB_PASSWORD := env("APP_DB_PASSWORD", "detective_app")
+
 # List recipes
 default:
     @just --list

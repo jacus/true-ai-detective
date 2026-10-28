@@ -49,8 +49,14 @@ export default defineRailway(() => {
     env: {
       // Fixed so the web service can reach /agent over the private network (`fastapi run` reads PORT).
       PORT: "8000",
-      // Private network only: the app never talks to the DB over the public proxy.
-      DATABASE_URL: pgvector.env.DATABASE_URL_PRIVATE,
+      // The app connects as `detective_app` (no superuser, so row-level security applies), private network only.
+      // IaC refs can only be a whole value, so compose with Railway's own `${{service.VAR}}` syntax.
+      DATABASE_URL:
+        "postgres://detective_app:${{APP_DB_PASSWORD}}@${{pgvector.PGHOST_PRIVATE}}:${{pgvector.PGPORT_PRIVATE}}/${{pgvector.PGDATABASE}}",
+      // Owner connection, used only by the pre-deploy migration (it creates tables, the app role and RLS policies).
+      MIGRATIONS_DATABASE_URL: pgvector.env.DATABASE_URL_PRIVATE,
+      // Secret set with `railway variable set APP_DB_PASSWORD --stdin --service api`; value stays on Railway.
+      APP_DB_PASSWORD: preserve(),
       // Secret set with `railway variable set OPENAI_API_KEY --stdin --service api`; value stays on Railway.
       OPENAI_API_KEY: preserve(),
     },

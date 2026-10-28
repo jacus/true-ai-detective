@@ -12,7 +12,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from detective.db import get_db
+from detective.db import act_as, get_db
 from detective.models import Invite, Role, User, UserSession
 from detective.settings import settings
 
@@ -144,6 +144,7 @@ async def current_user(db: Db, detective_session: Annotated[str | None, Cookie()
             .where(UserSession.token_hash == hash_token(detective_session), UserSession.expires_at > now())
         )
         if user:
+            await act_as(db, user.id)  # from here on, row-level security applies to this user
             return user
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not logged in")
 

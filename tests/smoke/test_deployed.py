@@ -62,6 +62,17 @@ def test_deployed_detective_answers_a_logged_in_client_over_ag_ui() -> None:
     assert reply.strip(), "the deployed detective should answer with text"
 
 
+def test_deployed_client_has_a_case() -> None:
+    login = httpx.post(f"{API_URL}/auth/login", json={"email": EMAIL, "password": PASSWORD}, timeout=15)
+    cookie = login.headers["set-cookie"].split(";", 1)[0]
+
+    first = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15)
+    second = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15)
+
+    assert first.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+
+
 def test_deployed_web_runtime_has_telemetry_off() -> None:
     info = httpx.get(f"{WEB_URL}/api/copilotkit/info", timeout=15).json()
 

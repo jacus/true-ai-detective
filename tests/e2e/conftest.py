@@ -40,13 +40,27 @@ def _stop(proc: subprocess.Popen[bytes]) -> None:
     proc.wait(timeout=10)
 
 
+APP_DB_PASSWORD = "app-role-test-password"
+
+
 @pytest.fixture(scope="session")
-def database_url() -> Iterator[str]:
-    """Throwaway Postgres, migrated with the real Alembic migrations."""
+def owner_database_url() -> Iterator[str]:
+    """Throwaway Postgres, migrated with the real Alembic migrations as the database owner."""
     with PostgresContainer(PG_IMAGE, driver=None) as pg:
         url = pg.get_connection_url()
-        subprocess.run(["alembic", "upgrade", "head"], env={**os.environ, "DATABASE_URL": url}, check=True)
+        subprocess.run(
+            ["alembic", "upgrade", "head"],
+            env={**os.environ, "MIGRATIONS_DATABASE_URL": url, "APP_DB_PASSWORD": APP_DB_PASSWORD},
+            check=True,
+        )
         yield url
+
+
+@pytest.fixture(scope="session")
+def database_url(owner_database_url: str) -> str:
+    """The same database as the app sees it: the `detective_app` role, subject to row-level security."""
+    host = owner_database_url.split("@", 1)[1]
+    return f"postgresql://detective_app:{APP_DB_PASSWORD}@{host}"
 
 
 def invite(

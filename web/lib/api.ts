@@ -17,14 +17,21 @@ export type User = {
   role: "owner" | "client";
 };
 
-/** The logged-in user according to the api, or null. Data Access Layer per Next.js auth guide. */
-export async function getUser(): Promise<User | null> {
+export type Case = { id: string; created_at: string };
+
+async function fromApi(path: string): Promise<Response | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const response = await fetch(`${apiUrl}/auth/me`, {
+  return fetch(`${apiUrl}${path}`, {
     headers: { cookie: `${SESSION_COOKIE}=${token}` },
     cache: "no-store",
   });
+}
+
+/** The logged-in user according to the api, or null. Data Access Layer per Next.js auth guide. */
+export async function getUser(): Promise<User | null> {
+  const response = await fromApi("/auth/me");
+  if (!response) return null;
   if (response.status === 401) return null;
   if (!response.ok) throw new Error(`api /auth/me failed: ${response.status}`);
   return response.json();
@@ -34,4 +41,13 @@ export async function requireUser(): Promise<User> {
   const user = await getUser();
   if (!user) redirect("/login");
   return user;
+}
+
+/** The logged-in user's case (one per client for now); its id is the chat thread id. */
+export async function getCurrentCase(): Promise<Case> {
+  const response = await fromApi("/cases/current");
+  if (!response || response.status === 401) redirect("/login");
+  if (!response.ok)
+    throw new Error(`api /cases/current failed: ${response.status}`);
+  return response.json();
 }

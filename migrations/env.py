@@ -12,8 +12,11 @@ from detective.settings import settings
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-# Same DATABASE_URL as the app (from the environment), not the placeholder in alembic.ini.
-config.set_main_option("sqlalchemy.url", settings.sqlalchemy_url.render_as_string(hide_password=False))
+# The owner connection from the environment (MIGRATIONS_DATABASE_URL), not the placeholder in alembic.ini.
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.migrations_sqlalchemy_url.render_as_string(hide_password=False).replace("%", "%%"),
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

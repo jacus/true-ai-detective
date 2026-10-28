@@ -58,3 +58,16 @@ class UserSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Case(Base):
+    """An investigation. One per client for now (client_id is unique); its id is the LangGraph thread id.
+
+    Row-level security: a database session only sees cases whose client_id matches `app.user_id`.
+    """
+
+    __tablename__ = "cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
