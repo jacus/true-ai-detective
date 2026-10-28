@@ -28,7 +28,6 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - Deployed: `tests/smoke/` (HTTP + browser), run via `just smoke <api-url> <web-url>`; not part of `just test`.
 
 ## Blockers
-- Railway has paused deploys (incident "Deployments stuck in initializing", 2026-10-28): `railway config apply` fails with "Deploys have been paused temporarily", so S7 can't reach production yet. Retry `railway config apply --yes`, then push.
 - none (DB backups deliberately deferred to S23 by the owner: hobby-level project for now)
 
 ## Testability debt
