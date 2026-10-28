@@ -125,3 +125,21 @@ def test_web_runtime_exposes_the_detective_with_telemetry_off(web: str) -> None:
 
     assert "detective" in info["agents"]
     assert info["telemetryDisabled"] is True
+
+
+def test_two_clients_chatting_never_see_each_others_case(
+    browser: Browser, web: str, api: str, database_url: str, fake_openai: str
+) -> None:
+    alice_email, bob_email = unique_email("alice"), unique_email("bob")
+    sign_up(api, database_url, alice_email, PASSWORD)
+    sign_up(api, database_url, bob_email, PASSWORD)
+    alice, bob = browser.new_context().new_page(), browser.new_context().new_page()
+    log_in(alice, web, alice_email)
+    log_in(bob, web, bob_email)
+
+    chat(alice, "The safe code is 7-3-1")
+    chat(bob, "Hello detective")
+
+    expect(bob.get_by_text("7-3-1")).to_have_count(0)
+    last_request = httpx.get(f"{fake_openai}/received").json()[-1]["messages"]
+    assert "7-3-1" not in str(last_request), "Bob's model call must not contain Alice's case"

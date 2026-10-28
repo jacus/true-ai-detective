@@ -5,7 +5,13 @@ import "@copilotkit/react-core/v2/styles.css";
 import { useRouter } from "next/navigation";
 import type { User } from "@/lib/api";
 
-export function DetectiveChat({ user }: { user: User }) {
+export function DetectiveChat({
+  user,
+  caseId,
+}: {
+  user: User;
+  caseId: string;
+}) {
   const router = useRouter();
 
   async function logout() {
@@ -40,6 +46,7 @@ export function DetectiveChat({ user }: { user: User }) {
         >
           <CopilotChat
             agentId="detective"
+            threadId={caseId}
             labels={{
               welcomeMessageText: "True AI Detective. Tell me about your case.",
               chatInputPlaceholder: "Describe what happened…",
