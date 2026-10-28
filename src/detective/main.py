@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.responses import StreamingResponse
 
 from detective import auth, cases
-from detective.agent import graph
+from detective.agent import builder
 from detective.models import Case
 from detective.settings import settings
 
@@ -34,9 +34,6 @@ async def health(response: Response) -> dict[str, str]:
     return {"status": "ok", "database": "ok", "pgvector": pgvector}
 
 
-detective = LangGraphAgent(name="detective", description="True AI Detective", graph=graph)
-
-
 @app.post("/agent")
 async def run_detective(
     run: RunAgentInput, request: Request, case: Annotated[Case, Depends(cases.current_case)]
@@ -48,10 +45,13 @@ async def run_detective(
     """
     run = run.model_copy(update={"thread_id": str(case.id)})
     encoder = EventEncoder(accept=request.headers.get("accept", "text/event-stream"))
-    agent = detective.clone()  # per-request run state, as the library's own endpoint does
 
     async def events():
-        async for event in agent.run(run):
-            yield encoder.encode(event)
+        # The conversation is stored in Postgres per case; the checkpointer acts as the case's client (RLS).
+        async with cases.case_checkpointer(case.client_id) as checkpointer:
+            graph = builder.compile(checkpointer=checkpointer)
+            agent = LangGraphAgent(name="detective", description="True AI Detective", graph=graph)
+            async for event in agent.run(run):
+                yield encoder.encode(event)
 
     return StreamingResponse(events(), media_type=encoder.get_content_type())
