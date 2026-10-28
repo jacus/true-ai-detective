@@ -17,7 +17,7 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - e2e:      `just test` (each e2e session starts a throwaway pgvector container and real API processes)
 - static:   `just check` (ruff lint, ruff format check, ty, biome, tsc)
 - scoped:   `just test tests/e2e/test_health.py` · `just test -k <name>` · `just test path::test_name`
-- smoke:    `just smoke https://api-production-fc37.up.railway.app https://web-production-7856b.up.railway.app` (deployed env; logs in as the smoke client from `.env` SMOKE_EMAIL/SMOKE_PASSWORD; two real `gpt-5.4-nano` calls incl. one via a real browser; Railway auto-deploys `main`, build+healthcheck ~4–5 min)
+- smoke:    `just smoke https://api-production-fc37.up.railway.app https://web-production-7856b.up.railway.app` (deployed env; logs in as the smoke client from `.env` SMOKE_EMAIL/SMOKE_PASSWORD and resets its case first; two real `gpt-5.4-nano` calls incl. one via a real browser; Railway auto-deploys `main`, build+healthcheck ~4–5 min)
 - remote:   `just invite-prod …` / `ssh railway-api '<cmd>'` (key + config set up via `railway ssh keys add` and `railway ssh config -s api`)
 - infra:    `just infra-plan` (exit 0 = Railway matches `.railway/railway.ts`; apply with `railway config apply`)
 - teardown: `just down` (add `-v` to wipe the DB volume)
@@ -31,4 +31,5 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - none (DB backups deliberately deferred to S23 by the owner: hobby-level project for now)
 
 ## Testability debt
+- LangGraph's checkpoint tables are created by the library (`PostgresSaver.setup()` inside an Alembic migration); after upgrading `langgraph-checkpoint-postgres`, add a migration that calls `setup()` again, or new library columns won't exist.
 - `Settings()` is built at import time in `main.py`. Fine while e2e boots a real process with env vars; revisit if in-process tests become necessary.
