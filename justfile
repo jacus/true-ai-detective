@@ -9,28 +9,39 @@ set shell := ["bash", "-cu"]
 default:
     @just --list
 
+# One-time setup for a fresh clone: Python deps, web deps, Playwright's Chromium
+setup:
+    uv sync
+    cd web && npm ci
+    uv run playwright install chromium
+
 # Start Postgres and the API with auto-reload on http://localhost:8000
 dev:
     docker compose up -d --wait db
     uv run fastapi dev src/detective/main.py
 
-# Run all tests (e2e tests start their own throwaway Postgres)
+# Start the web chat with hot reload on http://localhost:3000 (talks to `just dev` on :8000)
+web:
+    cd web && npm run dev
+
+# Run all tests (e2e tests start their own throwaway Postgres, fake OpenAI, api and web)
 test *args:
     uv run pytest {{args}}
 
-# Smoke-test a deployed environment, e.g. `just smoke https://api-production-xxxx.up.railway.app`
-smoke base_url:
-    SMOKE_BASE_URL={{base_url}} uv run pytest tests/smoke -q
+# Smoke-test a deployed environment (real nano calls), e.g. `just smoke https://api-… https://web-…`
+smoke api_url web_url:
+    SMOKE_API_URL={{api_url}} SMOKE_WEB_URL={{web_url}} uv run pytest tests/smoke -q
 
 # Check Railway matches .railway/railway.ts (exit 0 = in sync, 2 = changes pending)
 infra-plan:
     railway config plan --detailed-exit-code
 
-# Lint, format check and type check
+# Lint, format check and type check (Python + web)
 check:
     uv run ruff check .
     uv run ruff format --check .
     uv run ty check
+    cd web && npx biome check && npx tsc --noEmit
 
 # Shift Zero gate CLI from the installed Claude Code plugin (e.g. `just szero status`, `just szero gate`)
 szero *args:
