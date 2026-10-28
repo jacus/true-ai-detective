@@ -13,7 +13,7 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - setup:    `just setup` (once per clone: uv sync, npm ci, Playwright Chromium; WSL also needed `sudo playwright install-deps chromium`)
 - boot:     `just dev` (Postgres via compose + API on :8000 with reload) and `just web` (Next.js on :3000)
 - seed:     `just invite <email> <name> [owner|client]` prints a local invite link (the e2e tests use the same CLI)
-- migrate:  `just dev` runs `alembic upgrade head`; new migration: `just migration "<msg>"`; Railway runs it pre-deploy
+- migrate:  `just dev` runs `alembic upgrade head` as the owner (`MIGRATIONS_DATABASE_URL`, `APP_DB_PASSWORD` defaults in Settings/justfile); new migration: `just migration "<msg>"`; Railway runs it pre-deploy
 - e2e:      `just test` (each e2e session starts a throwaway pgvector container and real API processes)
 - static:   `just check` (ruff lint, ruff format check, ty, biome, tsc)
 - scoped:   `just test tests/e2e/test_health.py` · `just test -k <name>` · `just test path::test_name`
@@ -23,7 +23,7 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - teardown: `just down` (add `-v` to wipe the DB volume)
 
 ## E2E surfaces
-- HTTP: `tests/e2e/` (DB migrated with real Alembic; users created with the real CLI). The server is started as a subprocess with `fastapi run` (same as prod) and driven with httpx over a real socket. Model calls go to `tests/e2e/fake_openai.py` (OpenAI-compatible, streaming) via the SDK's `OPENAI_BASE_URL`; tests never make paid calls.
+- HTTP: `tests/e2e/` (DB migrated with real Alembic as owner; api/CLI connect as `detective_app` like prod; `owner_database_url` fixture for setup that must bypass RLS; users created with the real CLI). The server is started as a subprocess with `fastapi run` (same as prod) and driven with httpx over a real socket. Model calls go to `tests/e2e/fake_openai.py` (OpenAI-compatible, streaming) via the SDK's `OPENAI_BASE_URL`; tests never make paid calls.
 - Browser: `tests/e2e/test_web_chat.py` with pytest-playwright; the `web` fixture runs `next build` once per session and `next start` per test against the real api. Wait for `networkidle` before typing (chat must discover the agent first).
 - Deployed: `tests/smoke/` (HTTP + browser), run via `just smoke <api-url> <web-url>`; not part of `just test`.
 

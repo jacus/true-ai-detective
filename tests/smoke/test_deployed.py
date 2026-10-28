@@ -99,9 +99,12 @@ def test_deployed_web_chat_gets_a_reply_after_login(page: Page) -> None:
     message_box.press("Enter")
 
     # Browser → web (CopilotRuntime + cookie) → api over Railway's private network → real nano model.
-    reply = page.get_by_test_id("copilot-assistant-message")
-    expect(reply).to_have_count(1, timeout=30_000)
-    expect(page.get_by_test_id("copilot-chat")).to_have_attribute(
-        "data-copilot-running", "false", timeout=60_000
-    )
-    expect(reply).not_to_have_text("")
+    # The case keeps its history, so earlier smoke runs' messages may be on screen: check the newest one.
+    chat = page.get_by_test_id("copilot-chat")
+    expect(chat).to_have_attribute("data-copilot-running", "true", timeout=30_000)
+    expect(chat).to_have_attribute("data-copilot-running", "false", timeout=60_000)
+    newest = page.locator(
+        '[data-testid="copilot-user-message"], [data-testid="copilot-assistant-message"]'
+    ).last
+    expect(newest).to_have_attribute("data-testid", "copilot-assistant-message")
+    expect(newest).not_to_have_text("")
