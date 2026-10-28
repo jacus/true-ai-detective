@@ -30,6 +30,10 @@ migration message:
 invite email name role="client":
     uv run detective invite {{email}} --name "{{name}}" --role {{role}}
 
+# Invite someone on Railway (runs the CLI inside the api container over SSH; needs `railway ssh config -s api`)
+invite-prod email name role="client" web_url="https://web-production-7856b.up.railway.app":
+    ssh -o BatchMode=yes railway-api 'detective invite {{email}} --name "{{name}}" --role {{role}} --base-url {{web_url}}' 
+
 # Start the web chat with hot reload on http://localhost:3000 (talks to `just dev` on :8000)
 web:
     cd web && npm run dev
