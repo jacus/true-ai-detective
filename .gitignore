@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# web/.env holds committed non-secret defaults (see file); secrets go in web/.env.local
+!web/.env
 
 # python
 __pycache__/

@@ -83,6 +83,32 @@ def api(database_url: str, fake_openai: str) -> Iterator[str]:
     _stop(proc)
 
 
+WEB_DIR = Path(__file__).parents[2] / "web"
+
+
+@pytest.fixture(scope="session")
+def web_build() -> None:
+    """Production build of the Next.js app, once per test session."""
+    subprocess.run(["npm", "run", "build"], cwd=WEB_DIR, check=True, capture_output=True)
+
+
+@pytest.fixture
+def web(web_build: None, api: str) -> Iterator[str]:
+    """The real web app (`next start`), relaying the chat to the real api."""
+    port = _free_port()
+    proc = subprocess.Popen(
+        ["npm", "run", "start", "--", "--hostname", "127.0.0.1", "--port", str(port)],
+        cwd=WEB_DIR,
+        env={**os.environ, "DETECTIVE_AGENT_URL": f"{api}/agent"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_until_up(proc, base_url, "web")
+    yield base_url
+    _stop(proc)
+
+
 @pytest.fixture
 def api_without_db(fake_openai: str) -> Iterator[str]:
     proc, base_url = start_api(f"postgresql://nobody:nothing@127.0.0.1:{_free_port()}/none", fake_openai)

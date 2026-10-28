@@ -45,6 +45,8 @@ export default defineRailway(() => {
     healthcheckTimeout: 60,
     replicas: { "europe-west4-drams3a": 1 },
     env: {
+      // Fixed so the web service can reach /agent over the private network (`fastapi run` reads PORT).
+      PORT: "8000",
       // Private network only: the app never talks to the DB over the public proxy.
       DATABASE_URL: pgvector.env.DATABASE_URL_PRIVATE,
       // Secret set with `railway variable set OPENAI_API_KEY --stdin --service api`; value stays on Railway.
@@ -52,8 +54,21 @@ export default defineRailway(() => {
     },
   });
 
+  // Next.js chat UI (CopilotKit), built by Railpack from web/. Its CopilotRuntime route relays
+  // AG-UI to the api over Railway's private network; only the web service faces visitors.
+  const web = service("web", {
+    source: github("jacus/true-ai-detective", { branch: "main", rootDirectory: "web" }),
+    healthcheck: "/",
+    healthcheckTimeout: 60,
+    replicas: { "europe-west4-drams3a": 1 },
+    env: {
+      // IaC refs can only be a whole value, so compose with Railway's own `${{service.VAR}}` syntax.
+      DETECTIVE_AGENT_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000/agent",
+    },
+  });
+
   return project("true-ai-detective", {
     variables: { managed: true },
-    resources: [pgvector, pgvectorVolume, api],
+    resources: [pgvector, pgvectorVolume, api, web],
   });
 });
