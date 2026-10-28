@@ -23,7 +23,7 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 | D4 | Model calls | Multimodal chat, separate vision extraction step, image generation, embeddings for RAG |
 | D5 | Wrappers | **None.** Libraries used as documented |
 | D6 | UI | Next.js (`web/`) + CopilotKit v2: `CopilotChat` in the browser, `CopilotRuntime` route relaying AG-UI via `HttpAgent` to FastAPI `/agent` (`ag-ui-langgraph`). CopilotKit telemetry disabled (`web/.env`) |
-| D7 | Auth | Owner-issued invite links → client sets password → session cookie; roles: owner, client |
+| D7 | Auth | **FastAPI owns identity**: users/invites/sessions in Postgres (Alembic); invite and session tokens stored only as SHA-256 hashes; argon2id passwords (pwdlib, 12+ chars); email + password login; HttpOnly + Secure + SameSite=Lax cookie on the web domain. Web relays `/api/auth/*` and forwards only the session cookie to `/agent`. Roles: owner (invites clients), client. Owner bootstrap: `detective invite … --role owner` via `just invite-prod` |
 | D8 | Isolation | App checks **and** Postgres row-level security (RLS) |
 | D9 | Tools | LangChain harness tools first; untrusted-web tools move to an MCP server in S20 |
 | D10 | Local infra | Docker Compose (`pgvector/pgvector:pg18`) for dev only; testcontainers for e2e |
@@ -34,7 +34,6 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 
 ### Open decisions (settled in their story)
 
-- **S4:** how the session cookie flows browser → Next.js (CopilotRuntime) → FastAPI `/agent`. **Open risk until then:** web and api `/agent` are public and unauthenticated, so anyone with the URL can spend OpenAI tokens (mitigation: a monthly budget limit on the OpenAI project; S4 closes it, and the api's public domain can go once smoke tests use the web)
 - **S7:** local S3-compatible storage (MinIO vs alternatives)
 - **S12:** how the Python graph calls JEV. With the Gateway key it's only callable from the TypeScript AI SDK; from Python it needs TypeSafe's `typesafe-sdk` with a `TYPESAFE_API_KEY`. Alternative: route with an OpenAI model
 - **S13:** search API provider (Tavily / Brave / Exa)
@@ -61,7 +60,7 @@ Browser ── Next.js + CopilotKit (web service)
           Postgres + pgvector (RLS, checkpoints, audit)     S3 bucket (evidence files, per-case prefix)
 ```
 
-Current state: Chat with the detective at https://<your-web>.up.railway.app. `web` (Next.js + CopilotKit) relays to `api` (https://<your-api>.up.railway.app: `GET /health`, `POST /agent` = AG-UI stream from a one-node LangGraph detective on `gpt-5.4-nano`, in-memory checkpointer) over Railway's private network; both auto-deploy from `main`. Local: `just setup` (once), `just dev` + `just web`, `just test`, `just check`; deployed: `just smoke <api-url> <web-url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod (`OPENAI_API_KEY` is a Railway secret, `preserve()` in IaC); `web/.env` holds committed non-secret web defaults; `Settings` (pydantic-settings) types the api's own config.
+Current state: Logged-in chat with the detective at https://<your-web>.up.railway.app (invite-only; owner page at `/owner`). `web` (Next.js + CopilotKit) relays auth and chat to `api` (https://<your-api>.up.railway.app: `GET /health`, `/auth/*`, `POST /agent` = AG-UI stream from a one-node LangGraph detective on `gpt-5.4-nano`, session required, in-memory checkpointer) over Railway's private network; both auto-deploy from `main`, migrations run pre-deploy. Local: `just setup` (once), `just dev` + `just web`, `just invite <email> <name> [role]`, `just test`, `just check`, `just migration "<msg>"`; deployed: `just smoke <api-url> <web-url>` (smoke client creds in `.env`), `just invite-prod <email> <name> [role]`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod (`OPENAI_API_KEY` is a Railway secret, `preserve()` in IaC); `web/.env` holds committed non-secret web defaults; `Settings` (pydantic-settings) types the api's own config.
 
 ---
 
@@ -80,7 +79,7 @@ Current state: Chat with the detective at https://<your-web>.up.railway.app. `we
 
 | | Story | Done when (observable e2e) | You'll learn |
 |---|---|---|---|
-| ⬜ | **S4 Invite & login.** As the owner I create a client and get an invite link; as a client I redeem it, set a password and log in. | Playwright full flow; expired, reused and forged invites rejected | DB layer + migrations (Alembic), argon2, secure session cookies |
+| ✅ | **S4 Invite & login.** As the owner I invite a client (owner page or CLI) and get a one-time link; as a client I set a password, log in and out; only logged-in users can chat. | 20 e2e tests: API rules (expired/reused/forged invites, short passwords, login/logout, owner-only invites, `/agent` 401) + browser flows (invite → chat, login/logout, owner invites client, clients can't use `/owner`); smoke on prod: anonymous `/agent` → 401, logged-in browser chat works | SQLAlchemy 2 + Alembic (Railway pre-deploy migrations), pwdlib/argon2id, hashed tokens, HttpOnly cookies, Next.js DAL + Cache Components, CopilotKit `forwardHeaders`, `railway ssh` |
 | ⬜ | **S5 Cases with RLS.** As a client I create and open my cases; I never see another client's. | API e2e: client B gets 404 on A's case IDs; a DB-level test proves RLS blocks the query even with the app check bypassed | Postgres RLS, DB roles, `SET LOCAL` per request |
 | ⬜ | **S6 Case conversations persist.** As a client, I leave and come back to a case and the conversation continues. | Restart api → conversation resumes; thread of case A unreadable from case B | LangGraph Postgres checkpointer, thread scoping |
 | ⬜ | **S7 Evidence locker.** As a client I attach files, photos, URLs and map pins to a case. | Upload → listed in case → download via presigned URL; another client's URL/key fails | S3 API, Railway Buckets, presigned URLs, map widget |
