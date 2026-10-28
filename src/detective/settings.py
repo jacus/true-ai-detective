@@ -10,3 +10,8 @@ class Settings(BaseSettings):
 
     # Default matches compose.yaml; Railway injects the real DATABASE_URL.
     database_url: str = "postgresql://detective:detective@localhost:5432/detective"
+    # `provider:model` for LangChain's init_chat_model. Very cheap models only (PLAN.md D3).
+    chat_model: str = "openai:gpt-5.4-nano"
+
+
+settings = Settings()
