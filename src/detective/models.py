@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -70,4 +70,44 @@ class Case(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class EvidenceKind(enum.StrEnum):
+    file = "file"  # photos are files too (image/*)
+    link = "link"
+    pin = "pin"
+
+
+class Evidence(Base):
+    """Something the client attached to a case: a file, a link or a map pin.
+
+    A file's bytes live in the S3 bucket at `storage.object_key(case_id, id)`; this row describes it.
+    Row-level security: visible only if its case is (and `cases` is itself RLS-filtered).
+    """
+
+    __tablename__ = "evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "kind <> 'file' OR (content_type IS NOT NULL AND size_bytes IS NOT NULL)", "file_details"
+        ),
+        CheckConstraint("kind <> 'link' OR url IS NOT NULL", "link_details"),
+        CheckConstraint(
+            "kind <> 'pin' OR (latitude IS NOT NULL AND longitude IS NOT NULL "
+            "AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)",
+            "pin_details",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[EvidenceKind] = mapped_column(
+        Enum(EvidenceKind, native_enum=False, create_constraint=True, length=16, validate_strings=True)
+    )
+    label: Mapped[str]  # file name, link address or pin label
+    content_type: Mapped[str | None]
+    size_bytes: Mapped[int | None]
+    url: Mapped[str | None]
+    latitude: Mapped[float | None]
+    longitude: Mapped[float | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

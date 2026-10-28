@@ -13,13 +13,16 @@
     "@ag-ui/client": "1.0.2",
     "@copilotkit/react-core": "^1.83.0",
     "@copilotkit/runtime": "^1.83.0",
+    "leaflet": "^1.9.4",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-leaflet": "^5.0.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

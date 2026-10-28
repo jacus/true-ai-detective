@@ -8,6 +8,12 @@ set shell := ["bash", "-cu"]
 # Local-only password for the `detective_app` DB role (migrations create it). Railway sets a real secret.
 export APP_DB_PASSWORD := env("APP_DB_PASSWORD", "detective_app")
 
+# Local S3 (RustFS from compose.yaml), in boto3's own variables. Railway points them at the bucket.
+export AWS_ENDPOINT_URL := env("AWS_ENDPOINT_URL", "http://localhost:9000")
+export AWS_ACCESS_KEY_ID := env("AWS_ACCESS_KEY_ID", "detective")
+export AWS_SECRET_ACCESS_KEY := env("AWS_SECRET_ACCESS_KEY", "detective-secret")
+export AWS_DEFAULT_REGION := env("AWS_DEFAULT_REGION", "us-east-1")
+
 # List recipes
 default:
     @just --list
@@ -18,9 +24,10 @@ setup:
     cd web && npm ci
     uv run playwright install chromium
 
-# Start Postgres and the API with auto-reload on http://localhost:8000
+# Start Postgres, S3 and the API with auto-reload on http://localhost:8000
 dev:
-    docker compose up -d --wait db
+    docker compose up -d --wait db s3
+    uv run python -c "import boto3; s3 = boto3.client('s3'); 'evidence' in [b['Name'] for b in s3.list_buckets()['Buckets']] or s3.create_bucket(Bucket='evidence')"
     uv run alembic upgrade head
     uv run fastapi dev src/detective/main.py
 

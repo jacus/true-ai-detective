@@ -7,7 +7,7 @@ from ag_ui_langgraph import LangGraphAgent
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.responses import StreamingResponse
 
-from detective import auth, cases
+from detective import auth, cases, evidence
 from detective.agent import builder
 from detective.models import Case
 from detective.settings import settings
@@ -15,6 +15,7 @@ from detective.settings import settings
 app = FastAPI(title="True AI Detective")
 app.include_router(auth.router)
 app.include_router(cases.router)
+app.include_router(evidence.router)
 
 
 @app.get("/health")

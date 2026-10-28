@@ -9,11 +9,23 @@ import {
 import "@copilotkit/react-core/v2/styles.css";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import type { User } from "@/lib/api";
+import type { Evidence, User } from "@/lib/api";
+import styles from "./evidence.module.css";
+import { EvidenceLocker } from "./evidence-locker";
 
-type Props = { user: User; caseId: string; initialMessages: Message[] };
+type Props = {
+  user: User;
+  caseId: string;
+  initialMessages: Message[];
+  initialEvidence: Evidence[];
+};
 
-export function DetectiveChat({ user, caseId, initialMessages }: Props) {
+export function DetectiveChat({
+  user,
+  caseId,
+  initialMessages,
+  initialEvidence,
+}: Props) {
   const router = useRouter();
 
   async function logout() {
@@ -24,7 +36,7 @@ export function DetectiveChat({ user, caseId, initialMessages }: Props) {
 
   async function resetCase() {
     const sure = window.confirm(
-      "Delete this case and its whole conversation for good? This can't be undone.",
+      "Delete this case, its evidence and its whole conversation for good? This can't be undone.",
     );
     if (!sure) return;
     await fetch("/api/cases/current", { method: "DELETE" });
@@ -53,15 +65,18 @@ export function DetectiveChat({ user, caseId, initialMessages }: Props) {
           Log out
         </button>
       </header>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        {/* Keyed by case: a reset mounts a completely fresh chat. */}
-        <CopilotKitProvider
-          key={caseId}
-          runtimeUrl="/api/copilotkit"
-          useSingleEndpoint={false}
-        >
-          <CaseChat caseId={caseId} initialMessages={initialMessages} />
-        </CopilotKitProvider>
+      <div className={styles.casePage}>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          {/* Keyed by case: a reset mounts a completely fresh chat and locker. */}
+          <CopilotKitProvider
+            key={caseId}
+            runtimeUrl="/api/copilotkit"
+            useSingleEndpoint={false}
+          >
+            <CaseChat caseId={caseId} initialMessages={initialMessages} />
+          </CopilotKitProvider>
+        </div>
+        <EvidenceLocker key={caseId} initialEvidence={initialEvidence} />
       </div>
     </div>
   );

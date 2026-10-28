@@ -1,5 +1,5 @@
-"""E2E fixtures: a throwaway Postgres (same image as compose/Railway), a fake OpenAI server,
-and the real API server process wired to both."""
+"""E2E fixtures: a throwaway Postgres (same image as compose/Railway), a throwaway S3 (RustFS), a fake
+OpenAI server, and the real API server process wired to all three."""
 
 import json
 import os
@@ -11,11 +11,15 @@ import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
+import boto3
 import httpx
 import pytest
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.core.container import DockerContainer
+from testcontainers.core.wait_strategies import HttpWaitStrategy
 
 PG_IMAGE = "pgvector/pgvector:pg18"
+S3_IMAGE = "rustfs/rustfs:1.0.4"  # same as compose.yaml; Railway Buckets in prod
 
 
 def _free_port() -> int:
@@ -62,6 +66,42 @@ def database_url(owner_database_url: str) -> str:
     """The same database as the app sees it: the `detective_app` role, subject to row-level security."""
     host = owner_database_url.split("@", 1)[1]
     return f"postgresql://detective_app:{APP_DB_PASSWORD}@{host}"
+
+
+S3_ENV = {
+    # boto3's own settings, as on Railway (where they reference the bucket's credentials).
+    "AWS_ACCESS_KEY_ID": "detective-test",
+    "AWS_SECRET_ACCESS_KEY": "detective-test-secret",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "EVIDENCE_BUCKET": "evidence-test",
+}
+
+
+@pytest.fixture(scope="session")
+def s3_endpoint() -> Iterator[str]:
+    """Throwaway S3-compatible storage with the evidence bucket created, as Railway creates it in prod."""
+    container = (
+        DockerContainer(S3_IMAGE)
+        .with_env("RUSTFS_ACCESS_KEY", S3_ENV["AWS_ACCESS_KEY_ID"])
+        .with_env("RUSTFS_SECRET_KEY", S3_ENV["AWS_SECRET_ACCESS_KEY"])
+        .with_exposed_ports(9000)
+        .waiting_for(HttpWaitStrategy(9000, "/health"))
+    )
+    with container:
+        endpoint = f"http://{container.get_container_host_ip()}:{container.get_exposed_port(9000)}"
+        storage(endpoint).create_bucket(Bucket=S3_ENV["EVIDENCE_BUCKET"])
+        yield endpoint
+
+
+def storage(s3_endpoint: str):  # noqa: ANN201 (boto3 clients are typed by stubs only)
+    """A boto3 client on the test S3, for checking what's in the bucket from outside the app."""
+    return boto3.client(
+        "s3",
+        endpoint_url=s3_endpoint,
+        aws_access_key_id=S3_ENV["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=S3_ENV["AWS_SECRET_ACCESS_KEY"],
+        region_name=S3_ENV["AWS_DEFAULT_REGION"],
+    )
 
 
 def invite(
@@ -136,7 +176,9 @@ def fake_openai() -> Iterator[str]:
     _stop(proc)
 
 
-def start_api(database_url: str, openai_base_url: str) -> tuple[subprocess.Popen[bytes], str]:
+def start_api(
+    database_url: str, openai_base_url: str, s3_endpoint: str
+) -> tuple[subprocess.Popen[bytes], str]:
     """Boot the API exactly as in production (`fastapi run`), pointed at the given dependencies."""
     port = _free_port()
     proc = subprocess.Popen(
@@ -147,6 +189,8 @@ def start_api(database_url: str, openai_base_url: str) -> tuple[subprocess.Popen
             # OpenAI SDK's own settings: route model calls to the fake server.
             "OPENAI_BASE_URL": f"{openai_base_url}/v1",
             "OPENAI_API_KEY": "sk-fake",
+            **S3_ENV,
+            "AWS_ENDPOINT_URL": s3_endpoint,
         },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -157,8 +201,8 @@ def start_api(database_url: str, openai_base_url: str) -> tuple[subprocess.Popen
 
 
 @pytest.fixture
-def api(database_url: str, fake_openai: str) -> Iterator[str]:
-    proc, base_url = start_api(database_url, fake_openai)
+def api(database_url: str, fake_openai: str, s3_endpoint: str) -> Iterator[str]:
+    proc, base_url = start_api(database_url, fake_openai, s3_endpoint)
     yield base_url
     _stop(proc)
 
@@ -190,7 +234,9 @@ def web(web_build: None, api: str) -> Iterator[str]:
 
 
 @pytest.fixture
-def api_without_db(fake_openai: str) -> Iterator[str]:
-    proc, base_url = start_api(f"postgresql://nobody:nothing@127.0.0.1:{_free_port()}/none", fake_openai)
+def api_without_db(fake_openai: str, s3_endpoint: str) -> Iterator[str]:
+    proc, base_url = start_api(
+        f"postgresql://nobody:nothing@127.0.0.1:{_free_port()}/none", fake_openai, s3_endpoint
+    )
     yield base_url
     _stop(proc)
