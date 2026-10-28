@@ -2,10 +2,11 @@ import json
 import uuid
 
 import httpx
+from conftest import sign_up, unique_email
 from fake_openai import reply_for
 
 
-def run_agent(api: str, user_text: str) -> list[dict]:
+def run_agent(api: str, cookie: str, user_text: str) -> list[dict]:
     """Send one AG-UI run to the detective and collect the streamed events."""
     run_input = {
         "threadId": str(uuid.uuid4()),
@@ -18,7 +19,11 @@ def run_agent(api: str, user_text: str) -> list[dict]:
     }
     events = []
     with httpx.stream(
-        "POST", f"{api}/agent", json=run_input, headers={"accept": "text/event-stream"}, timeout=30
+        "POST",
+        f"{api}/agent",
+        json=run_input,
+        headers={"accept": "text/event-stream", "cookie": cookie},
+        timeout=30,
     ) as response:
         assert response.status_code == 200
         for line in response.iter_lines():
@@ -27,8 +32,9 @@ def run_agent(api: str, user_text: str) -> list[dict]:
     return events
 
 
-def test_detective_streams_a_reply_over_ag_ui(api: str) -> None:
-    events = run_agent(api, "My bike was stolen from the train station")
+def test_detective_streams_a_reply_over_ag_ui(api: str, database_url: str) -> None:
+    cookie = sign_up(api, database_url, unique_email(), "correct horse battery staple")
+    events = run_agent(api, cookie, "My bike was stolen from the train station")
 
     types = [e["type"] for e in events]
     assert types[0] == "RUN_STARTED"
@@ -38,8 +44,11 @@ def test_detective_streams_a_reply_over_ag_ui(api: str) -> None:
     assert "".join(chunks) == reply_for("My bike was stolen from the train station")
 
 
-def test_detective_uses_the_cheap_model_with_its_detective_persona(api: str, fake_openai: str) -> None:
-    run_agent(api, "Who took my cat?")
+def test_detective_uses_the_cheap_model_with_its_detective_persona(
+    api: str, database_url: str, fake_openai: str
+) -> None:
+    cookie = sign_up(api, database_url, unique_email(), "correct horse battery staple")
+    run_agent(api, cookie, "Who took my cat?")
 
     request = httpx.get(f"{fake_openai}/received").json()[-1]
     assert request["model"] == "gpt-5.4-nano"

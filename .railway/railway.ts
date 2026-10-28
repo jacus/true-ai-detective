@@ -41,6 +41,8 @@ export default defineRailway(() => {
   const api = service("api", {
     source: github("jacus/true-ai-detective", { branch: "main" }),
     start: "fastapi run src/detective/main.py",
+    // Runs between build and deploy with private-network DB access; a failing migration stops the deploy.
+    preDeploy: "alembic upgrade head",
     healthcheck: "/health",
     healthcheckTimeout: 60,
     replicas: { "europe-west4-drams3a": 1 },
@@ -58,12 +60,12 @@ export default defineRailway(() => {
   // AG-UI to the api over Railway's private network; only the web service faces visitors.
   const web = service("web", {
     source: github("jacus/true-ai-detective", { branch: "main", rootDirectory: "web" }),
-    healthcheck: "/",
+    healthcheck: "/login",
     healthcheckTimeout: 60,
     replicas: { "europe-west4-drams3a": 1 },
     env: {
       // IaC refs can only be a whole value, so compose with Railway's own `${{service.VAR}}` syntax.
-      DETECTIVE_AGENT_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000/agent",
+      DETECTIVE_API_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000",
     },
   });
 

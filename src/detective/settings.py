@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from sqlalchemy.engine import URL, make_url
 
 
 class Settings(BaseSettings):
@@ -12,6 +13,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://detective:detective@localhost:5432/detective"
     # `provider:model` for LangChain's init_chat_model. Very cheap models only (PLAN.md D3).
     chat_model: str = "openai:gpt-5.4-nano"
+    # Session cookie is HTTPS-only. Browsers treat localhost as secure, so this stays on locally too.
+    session_cookie_secure: bool = True
+    session_days: int = 14
+
+    @property
+    def sqlalchemy_url(self) -> URL:
+        """Same database, addressed for SQLAlchemy's async psycopg driver (Railway hands out `postgres://`)."""
+        return make_url(self.database_url).set(drivername="postgresql+psycopg")
 
 
 settings = Settings()

@@ -1,11 +1,13 @@
 import psycopg
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
-from fastapi import FastAPI, Response, status
+from fastapi import Depends, FastAPI, Response, status
 
+from detective import auth
 from detective.agent import graph
 from detective.settings import settings
 
 app = FastAPI(title="True AI Detective")
+app.include_router(auth.router)
 
 
 @app.get("/health")
@@ -25,9 +27,10 @@ async def health(response: Response) -> dict[str, str]:
     return {"status": "ok", "database": "ok", "pgvector": pgvector}
 
 
-# AG-UI endpoint: POST /agent streams the detective's run as Server-Sent Events.
+# AG-UI endpoint: POST /agent streams the detective's run as Server-Sent Events. Logged-in users only.
 add_langgraph_fastapi_endpoint(
     app,
     LangGraphAgent(name="detective", description="True AI Detective", graph=graph),
     path="/agent",
+    dependencies=[Depends(auth.current_user)],
 )
