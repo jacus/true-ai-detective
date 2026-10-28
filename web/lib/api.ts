@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Message } from "@ag-ui/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -49,5 +50,14 @@ export async function getCurrentCase(): Promise<Case> {
   if (!response || response.status === 401) redirect("/login");
   if (!response.ok)
     throw new Error(`api /cases/current failed: ${response.status}`);
+  return response.json();
+}
+
+/** The case's conversation so far (from the api's checkpoint), as AG-UI messages. */
+export async function getCaseMessages(): Promise<Message[]> {
+  const response = await fromApi("/cases/current/messages");
+  if (!response || response.status === 401) redirect("/login");
+  if (!response.ok)
+    throw new Error(`api /cases/current/messages failed: ${response.status}`);
   return response.json();
 }

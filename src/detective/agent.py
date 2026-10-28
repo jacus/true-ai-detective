@@ -2,7 +2,6 @@
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import SystemMessage
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 
 from detective.settings import settings
@@ -25,7 +24,5 @@ builder = StateGraph(MessagesState)  # ty: ignore[invalid-argument-type]
 builder.add_node("detective", detective)
 builder.add_edge(START, "detective")
 builder.add_edge("detective", END)
-
-# The AG-UI bridge reads graph state on every run, so the graph needs a checkpointer.
-# In-memory for now: conversations are lost on restart until S6 moves them to Postgres.
-graph = builder.compile(checkpointer=InMemorySaver())
+# Compiled per request with a checkpointer on the user's own DB connection (cases.case_checkpointer),
+# so every checkpoint read and write goes through row-level security.

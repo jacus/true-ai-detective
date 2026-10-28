@@ -1,39 +1,12 @@
-import json
 import uuid
 
 import httpx
 import psycopg
 import pytest
-from conftest import sign_up, unique_email
+from conftest import model_saw, sign_up, unique_email
+from conftest import run_agent as run
 
 PASSWORD = "correct horse battery staple"
-
-
-def run(api: str, cookie: str, text: str, thread_id: str | None = None) -> list[dict]:
-    """One AG-UI run as the given client; returns the streamed events."""
-    run_input = {
-        "threadId": thread_id or str(uuid.uuid4()),
-        "runId": str(uuid.uuid4()),
-        "state": {},
-        "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": text}],
-        "tools": [],
-        "context": [],
-        "forwardedProps": {},
-    }
-    with httpx.stream(
-        "POST",
-        f"{api}/agent",
-        json=run_input,
-        headers={"accept": "text/event-stream", "cookie": cookie},
-        timeout=30,
-    ) as response:
-        assert response.status_code == 200
-        return [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
-
-
-def model_saw(fake_openai: str) -> str:
-    """Everything the (fake) model was sent in its most recent request."""
-    return json.dumps(httpx.get(f"{fake_openai}/received").json()[-1]["messages"])
 
 
 def test_a_client_cannot_read_or_continue_another_clients_case(

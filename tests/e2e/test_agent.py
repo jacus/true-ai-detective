@@ -1,35 +1,6 @@
-import json
-import uuid
-
 import httpx
-from conftest import sign_up, unique_email
+from conftest import run_agent, sign_up, unique_email
 from fake_openai import reply_for
-
-
-def run_agent(api: str, cookie: str, user_text: str) -> list[dict]:
-    """Send one AG-UI run to the detective and collect the streamed events."""
-    run_input = {
-        "threadId": str(uuid.uuid4()),
-        "runId": str(uuid.uuid4()),
-        "state": {},
-        "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": user_text}],
-        "tools": [],
-        "context": [],
-        "forwardedProps": {},
-    }
-    events = []
-    with httpx.stream(
-        "POST",
-        f"{api}/agent",
-        json=run_input,
-        headers={"accept": "text/event-stream", "cookie": cookie},
-        timeout=30,
-    ) as response:
-        assert response.status_code == 200
-        for line in response.iter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line.removeprefix("data: ")))
-    return events
 
 
 def test_detective_streams_a_reply_over_ag_ui(api: str, database_url: str) -> None:

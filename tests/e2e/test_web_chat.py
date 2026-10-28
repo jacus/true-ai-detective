@@ -143,3 +143,65 @@ def test_two_clients_chatting_never_see_each_others_case(
     expect(bob.get_by_text("7-3-1")).to_have_count(0)
     last_request = httpx.get(f"{fake_openai}/received").json()[-1]["messages"]
     assert "7-3-1" not in str(last_request), "Bob's model call must not contain Alice's case"
+
+
+def test_anonymous_callers_cannot_replay_a_case_from_the_web_runtime(
+    page: Page, web: str, api: str, database_url: str
+) -> None:
+    email = unique_email("alice")
+    cookie = sign_up(api, database_url, email, PASSWORD)
+    log_in(page, web, email)
+    chat(page, "The safe code is 7-3-1")
+    case_id = httpx.get(f"{api}/cases/current", headers={"cookie": cookie}).json()["id"]
+
+    # No cookie: ask the web's CopilotRuntime to replay Alice's thread.
+    connect = {
+        "threadId": case_id,
+        "runId": "x",
+        "state": {},
+        "messages": [],
+        "tools": [],
+        "context": [],
+        "forwardedProps": {},
+    }
+    response = httpx.post(f"{web}/api/copilotkit/agent/detective/connect", json=connect, timeout=15)
+
+    assert response.status_code != 200
+    assert "7-3-1" not in response.text
+
+
+def test_the_conversation_is_still_there_after_a_reload(
+    page: Page, web: str, api: str, database_url: str
+) -> None:
+    email = unique_email()
+    sign_up(api, database_url, email, PASSWORD)
+    log_in(page, web, email)
+    chat(page, "The thief wore red boots")
+
+    page.reload()
+
+    # Before typing anything: the saved conversation comes back from the api.
+    expect(page.get_by_text("The thief wore red boots", exact=True)).to_be_visible(timeout=15_000)
+    expect(page.get_by_text(reply_for("The thief wore red boots"))).to_be_visible()
+
+
+def test_reset_case_asks_first_then_wipes_the_conversation(
+    page: Page, web: str, api: str, database_url: str
+) -> None:
+    email = unique_email()
+    sign_up(api, database_url, email, PASSWORD)
+    log_in(page, web, email)
+    chat(page, "The safe code is 7-3-1")
+
+    page.once("dialog", lambda dialog: dialog.dismiss())  # changed my mind
+    page.get_by_role("button", name="Reset case").click()
+    expect(page.get_by_text("The safe code is 7-3-1", exact=True)).to_be_visible()
+
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Reset case").click()
+    expect(page.get_by_text("The safe code is 7-3-1", exact=True)).to_have_count(0)
+
+    page.reload()
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_text("The safe code is 7-3-1", exact=True)).to_have_count(0)
+    chat(page, "Starting over")

@@ -1,6 +1,7 @@
 """E2E fixtures: a throwaway Postgres (same image as compose/Railway), a fake OpenAI server,
 and the real API server process wired to both."""
 
+import json
 import os
 import socket
 import subprocess
@@ -95,6 +96,33 @@ def sign_up(api: str, database_url: str, email: str, password: str, role: str = 
     response = httpx.post(f"{api}/auth/invites/redeem", json={"token": token, "password": password})
     assert response.status_code == 204, response.text
     return session_cookie(response)
+
+
+def run_agent(api: str, cookie: str, text: str, thread_id: str | None = None) -> list[dict]:
+    """One AG-UI run against the api as the given client; returns the streamed events."""
+    run_input = {
+        "threadId": thread_id or str(uuid.uuid4()),
+        "runId": str(uuid.uuid4()),
+        "state": {},
+        "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": text}],
+        "tools": [],
+        "context": [],
+        "forwardedProps": {},
+    }
+    with httpx.stream(
+        "POST",
+        f"{api}/agent",
+        json=run_input,
+        headers={"accept": "text/event-stream", "cookie": cookie},
+        timeout=30,
+    ) as response:
+        assert response.status_code == 200
+        return [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
+
+
+def model_saw(fake_openai: str) -> str:
+    """Everything the (fake) model was sent in its most recent request."""
+    return json.dumps(httpx.get(f"{fake_openai}/received").json()[-1]["messages"])
 
 
 @pytest.fixture(scope="session")

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getCurrentCase, requireUser } from "@/lib/api";
+import { getCaseMessages, getCurrentCase, requireUser } from "@/lib/api";
 import { DetectiveChat } from "./detective-chat";
 
 export default function Home() {
@@ -16,5 +16,12 @@ export default function Home() {
 async function Chat() {
   const user = await requireUser();
   const currentCase = await getCurrentCase();
-  return <DetectiveChat user={user} caseId={currentCase.id} />;
+  const messages = await getCaseMessages();
+  return (
+    <DetectiveChat
+      user={user}
+      caseId={currentCase.id}
+      initialMessages={messages}
+    />
+  );
 }

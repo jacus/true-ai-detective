@@ -42,10 +42,21 @@ def test_deployed_detective_refuses_anonymous_runs() -> None:
     assert response.status_code == 401
 
 
-def test_deployed_detective_answers_a_logged_in_client_over_ag_ui() -> None:
+def log_in() -> str:
     login = httpx.post(f"{API_URL}/auth/login", json={"email": EMAIL, "password": PASSWORD}, timeout=15)
     assert login.status_code == 204
-    cookie = login.headers["set-cookie"].split(";", 1)[0]
+    return login.headers["set-cookie"].split(";", 1)[0]
+
+
+def test_deployed_case_resets_then_remembers_the_conversation() -> None:
+    cookie = log_in()
+    old_case = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15).json()["id"]
+
+    # Start from a fresh case each smoke run (also keeps the smoke conversation, and its cost, small).
+    reset = httpx.delete(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=30)
+    assert reset.status_code == 200
+    assert reset.json()["id"] != old_case
+    assert httpx.get(f"{API_URL}/cases/current/messages", headers={"cookie": cookie}, timeout=15).json() == []
 
     with httpx.stream(
         "POST",
@@ -56,15 +67,27 @@ def test_deployed_detective_answers_a_logged_in_client_over_ag_ui() -> None:
     ) as response:
         assert response.status_code == 200
         events = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
-
     assert events[-1]["type"] == "RUN_FINISHED"
     reply = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
     assert reply.strip(), "the deployed detective should answer with text"
 
+    saved = httpx.get(f"{API_URL}/cases/current/messages", headers={"cookie": cookie}, timeout=15).json()
+    assert [m["role"] for m in saved] == ["user", "assistant"]
+    assert saved[0]["content"] == "Smoke test: say hello in five words."
+
+
+def test_deployed_web_runtime_refuses_anonymous_replay() -> None:
+    case_id = httpx.get(f"{API_URL}/cases/current", headers={"cookie": log_in()}, timeout=15).json()["id"]
+    connect = run_input("")
+    connect["threadId"] = case_id
+
+    response = httpx.post(f"{WEB_URL}/api/copilotkit/agent/detective/connect", json=connect, timeout=15)
+
+    assert response.status_code != 200
+
 
 def test_deployed_client_has_a_case() -> None:
-    login = httpx.post(f"{API_URL}/auth/login", json={"email": EMAIL, "password": PASSWORD}, timeout=15)
-    cookie = login.headers["set-cookie"].split(";", 1)[0]
+    cookie = log_in()
 
     first = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15)
     second = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15)
