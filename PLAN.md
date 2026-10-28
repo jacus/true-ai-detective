@@ -22,7 +22,7 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 | D3 | LLM provider | OpenAI via LangChain `init_chat_model`. **Very cheap models only**: `gpt-5.4-nano` by default (`gpt-5.4-mini` only if nano demonstrably can't do a task), `text-embedding-3-small`, cheapest `gpt-image` tier. Tests use fake models, never paid calls |
 | D4 | Model calls | Multimodal chat, separate vision extraction step, image generation, embeddings for RAG |
 | D5 | Wrappers | **None.** Libraries used as documented |
-| D6 | UI | React + CopilotKit + AG-UI, FastAPI agent backend |
+| D6 | UI | Next.js (`web/`) + CopilotKit v2: `CopilotChat` in the browser, `CopilotRuntime` route relaying AG-UI via `HttpAgent` to FastAPI `/agent` (`ag-ui-langgraph`). CopilotKit telemetry disabled (`web/.env`) |
 | D7 | Auth | Owner-issued invite links → client sets password → session cookie; roles: owner, client |
 | D8 | Isolation | App checks **and** Postgres row-level security (RLS) |
 | D9 | Tools | LangChain harness tools first; untrusted-web tools move to an MCP server in S20 |
@@ -34,7 +34,7 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 
 ### Open decisions (settled in their story)
 
-- **S3b/S4:** how the session cookie flows browser → Next.js (CopilotRuntime) → FastAPI `/agent`
+- **S4:** how the session cookie flows browser → Next.js (CopilotRuntime) → FastAPI `/agent`. **Open risk until then:** web and api `/agent` are public and unauthenticated, so anyone with the URL can spend OpenAI tokens (mitigation: a monthly budget limit on the OpenAI project; S4 closes it, and the api's public domain can go once smoke tests use the web)
 - **S7:** local S3-compatible storage (MinIO vs alternatives)
 - **S12:** how the Python graph calls JEV. With the Gateway key it's only callable from the TypeScript AI SDK; from Python it needs TypeSafe's `typesafe-sdk` with a `TYPESAFE_API_KEY`. Alternative: route with an OpenAI model
 - **S13:** search API provider (Tavily / Brave / Exa)
@@ -61,7 +61,7 @@ Browser ── Next.js + CopilotKit (web service)
           Postgres + pgvector (RLS, checkpoints, audit)     S3 bucket (evidence files, per-case prefix)
 ```
 
-Current state: FastAPI app deployed at https://api-production-fc37.up.railway.app (auto-deploy from `main`): `GET /health` (DB round-trip + pgvector) and `POST /agent` (AG-UI stream from a one-node LangGraph detective on `gpt-5.4-nano`, in-memory checkpointer). Local: `just dev`, `just test`, `just check`; deployed: `just smoke <url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod (`OPENAI_API_KEY` set as a Railway secret, `preserve()` in IaC); `Settings` (pydantic-settings) types our own config.
+Current state: Chat with the detective at https://web-production-7856b.up.railway.app. `web` (Next.js + CopilotKit) relays to `api` (https://api-production-fc37.up.railway.app: `GET /health`, `POST /agent` = AG-UI stream from a one-node LangGraph detective on `gpt-5.4-nano`, in-memory checkpointer) over Railway's private network; both auto-deploy from `main`. Local: `just setup` (once), `just dev` + `just web`, `just test`, `just check`; deployed: `just smoke <api-url> <web-url>`; infra: `just infra-plan` / `railway config apply`. Config is real env vars only: `just` loads `.env` locally, Railway provides them in prod (`OPENAI_API_KEY` is a Railway secret, `preserve()` in IaC); `web/.env` holds committed non-secret web defaults; `Settings` (pydantic-settings) types the api's own config.
 
 ---
 
@@ -74,7 +74,7 @@ Current state: FastAPI app deployed at https://api-production-fc37.up.railway.ap
 | ✅ | **S1 Walking skeleton (local).** As a dev, I can boot the API and DB with one command. | `just dev` → `GET /health` reports DB + pgvector; 503 when DB is down; e2e tests boot a real server against a throwaway pgvector container | uv, ruff, ty, just, docker compose, testcontainers, Shift Zero |
 | ✅ | **S2 Deployed skeleton.** As the owner, I can open the API on a public Railway URL. | https://api-production-fc37.up.railway.app/health green (`just smoke <url>`); data survived api and DB redeploys; public DB proxy removed; Railway healthcheck guards deploys | Railway IaC (`railway config`), Railpack, volumes, variable references, private networking |
 | ✅ | **S3a Detective agent.** As a client app, I can talk to a one-node LangGraph detective over AG-UI and get a streamed reply. | `POST /agent` streams AG-UI events (e2e against a fake OpenAI server via `OPENAI_BASE_URL`; asserts `gpt-5.4-nano` + detective persona); deployed smoke makes one real nano call | LangGraph `StateGraph`, `init_chat_model`, `ag-ui-langgraph`, AG-UI events, SSE |
-| ⬜ | **S3b Chat in the browser.** As a visitor, I chat with the detective in a web page and see the reply stream. | Playwright: type a message → streamed reply (fake model); `web` service on Railway | Next.js, CopilotKit (`CopilotRuntime` + `HttpAgent` → `/agent`), Playwright |
+| ✅ | **S3b Chat in the browser.** As a visitor, I chat with the detective in a web page and see the reply stream. | Playwright drives the real page against real api + fake OpenAI; deployed smoke: real browser → web → private network → api → nano; CopilotKit telemetry off | Next.js 16, CopilotKit v2 (`CopilotRuntime` + `HttpAgent` → `/agent`), Playwright, Biome, Railway private networking |
 
 ### M1 — Clients, cases & isolation
 
