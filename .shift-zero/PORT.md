@@ -14,14 +14,17 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - e2e:      `just test` (each e2e session starts a throwaway pgvector container and real API processes)
 - static:   `just check` (ruff lint, ruff format check, ty)
 - scoped:   `just test tests/e2e/test_health.py` · `just test -k <name>` · `just test path::test_name`
+- smoke:    `just smoke https://<your-api>.up.railway.app` (deployed env; Railway auto-deploys `main`, build+healthcheck ~4–5 min)
+- infra:    `railway config plan` (must print "already up to date" when code matches Railway)
 - teardown: `just down` (add `-v` to wipe the DB volume)
 
 ## E2E surfaces
 - HTTP: `tests/e2e/`. The server is started as a subprocess with `fastapi run` (same as prod) and driven with httpx over a real socket.
+- HTTP (deployed): `tests/smoke/`, run via `just smoke <base-url>`; not part of `just test`.
 - Browser: Playwright, to be added with the web UI (S3).
 
 ## Blockers
-- none
+- Railway DB backups → a lost volume means lost case data → upgrade workspace to Pro, or add scheduled `pg_dump` to the bucket in S7
 
 ## Testability debt
 - `Settings()` is built at import time in `main.py`. Fine while e2e boots a real process with env vars; revisit if in-process tests become necessary.

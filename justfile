@@ -15,6 +15,10 @@ dev:
 test *args:
     uv run pytest {{args}}
 
+# Smoke-test a deployed environment, e.g. `just smoke https://api-production-xxxx.up.railway.app`
+smoke base_url:
+    SMOKE_BASE_URL={{base_url}} uv run pytest tests/smoke -q
+
 # Lint, format check and type check
 check:
     uv run ruff check .

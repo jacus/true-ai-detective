@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/e2e"]
 
 [tool.ruff]
 line-length = 110
