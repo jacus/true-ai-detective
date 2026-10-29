@@ -50,7 +50,9 @@ async def run_detective(
     Same as ag-ui-langgraph's add_langgraph_fastapi_endpoint, except the thread is always the user's own
     case: the browser's threadId is ignored, so nobody can read or continue someone else's conversation.
     """
-    run = run.model_copy(update={"thread_id": str(case.id)})
+    # The case is the thread, and the state (e.g. the board) is the graph's alone: whatever state the browser
+    # sends is dropped, so a client can't plant a board; the graph carries its own over from the checkpoint.
+    run = run.model_copy(update={"thread_id": str(case.id), "state": {}})
     found = await db.execute(
         select(Fact.statement, Fact.location, Evidence.label)
         .join(Evidence, Fact.evidence_id == Evidence.id)

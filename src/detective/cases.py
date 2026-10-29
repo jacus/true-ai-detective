@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from detective.agent import builder
 from detective.auth import current_user
+from detective.board import EMPTY, Board
 from detective.db import get_db
 from detective.models import Case, User
 from detective.settings import settings
@@ -76,6 +77,14 @@ async def get_current_messages(case: Annotated[Case, Depends(current_case)]) -> 
         state = await builder.compile(checkpointer=saver).aget_state(thread_of(case))
     messages = langchain_messages_to_agui(state.values.get("messages", []))
     return [m.model_dump(mode="json", by_alias=True, exclude_none=True) for m in messages]
+
+
+@router.get("/current/board")
+async def get_current_board(case: Annotated[Case, Depends(current_case)]) -> Board:
+    """The case board from the checkpoint (the page shows it on load; runs then stream its updates)."""
+    async with case_checkpointer(case.client_id) as saver:
+        state = await builder.compile(checkpointer=saver).aget_state(thread_of(case))
+    return state.values.get("board", EMPTY)
 
 
 @router.delete("/current")

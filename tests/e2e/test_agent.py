@@ -1,5 +1,4 @@
-import httpx
-from conftest import run_agent, sign_up, unique_email
+from conftest import chat_request, run_agent, sign_up, unique_email
 from fake_openai import reply_for
 
 
@@ -21,7 +20,7 @@ def test_detective_uses_the_cheap_model_with_its_detective_persona(
     cookie = sign_up(api, database_url, unique_email(), "correct horse battery staple")
     run_agent(api, cookie, "Who took my cat?")
 
-    request = httpx.get(f"{fake_openai}/received").json()[-1]
+    request = chat_request(fake_openai)
     assert request["model"] == "gpt-5.4-nano"
     assert request["messages"][0]["role"] == "system"
     assert "detective" in request["messages"][0]["content"].lower()

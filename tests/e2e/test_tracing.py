@@ -59,8 +59,9 @@ def test_a_detective_run_is_traced_with_its_node_and_model_call(
     assert root["extra"]["metadata"]["thread_id"] == case_id
 
     [node] = [run for run in runs if run["name"] == "detective" and run["run_type"] == "chain"]
-    [llm] = [run for run in runs if run["run_type"] == "llm"]
-    assert by_id[llm["parent_run_id"]] is node
+    # The reply's model call sits under the detective node; the board's under update_board (S10).
+    [llm] = [run for run in runs if run["run_type"] == "llm" and by_id[run["parent_run_id"]] is node]
+    assert any(run["name"] == "update_board" and run["parent_run_id"] == root["id"] for run in runs)
     assert llm["extra"]["metadata"]["ls_model_name"] == "gpt-5.4-nano"
     assert "detective" in json.dumps(llm["inputs"]).lower()  # the system prompt the model got
     assert reply_for("My bike was stolen from the train station") in json.dumps(llm["outputs"])

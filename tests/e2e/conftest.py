@@ -138,13 +138,18 @@ def sign_up(api: str, database_url: str, email: str, password: str, role: str = 
     return session_cookie(response)
 
 
-def run_agent(api: str, cookie: str, text: str, thread_id: str | None = None) -> list[dict]:
-    """One AG-UI run against the api as the given client; returns the streamed events."""
+def run_agent(
+    api: str, cookie: str, text: str | None, thread_id: str | None = None, state: dict | None = None
+) -> list[dict]:
+    """One AG-UI run against the api as the given client; returns the streamed events.
+
+    `text=None` sends no new message (what the browser does to refresh the board after new evidence).
+    """
     run_input = {
         "threadId": thread_id or str(uuid.uuid4()),
         "runId": str(uuid.uuid4()),
-        "state": {},
-        "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": text}],
+        "state": state or {},
+        "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": text}] if text else [],
         "tools": [],
         "context": [],
         "forwardedProps": {},
@@ -160,9 +165,15 @@ def run_agent(api: str, cookie: str, text: str, thread_id: str | None = None) ->
         return [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
 
 
+def chat_request(fake_openai: str) -> dict:
+    """The most recent chat request to the (fake) model: the streamed one that answers the client
+    (structured-output calls such as the board update are not streamed)."""
+    return [r for r in httpx.get(f"{fake_openai}/received").json() if r.get("stream")][-1]
+
+
 def model_saw(fake_openai: str) -> str:
-    """Everything the (fake) model was sent in its most recent request."""
-    return json.dumps(httpx.get(f"{fake_openai}/received").json()[-1]["messages"])
+    """Everything the (fake) model was sent in its most recent chat request."""
+    return json.dumps(chat_request(fake_openai)["messages"])
 
 
 @pytest.fixture(scope="session")
