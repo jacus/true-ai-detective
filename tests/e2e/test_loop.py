@@ -1,10 +1,9 @@
 """The loop: each client message, the detective decides its next step with a decision model (JEV in prod,
 the fake's Decisions API here) and walks the graph accordingly. A scripted conversation walks every branch.
 
-The fake decides "ask" unless a test queues decisions; research queries come from the fake's "Search" answer.
+The fake decides "ask" unless a test queues decisions; research is the fake's tool calls (a search of the
+case file unless a test queues its own).
 """
-
-import json
 
 import httpx
 from conftest import chat_request, run_agent, sign_up, unique_email
@@ -18,6 +17,10 @@ CONCLUDE = "Answer the client from what you found, naming the source"
 
 def queue(fake_openai: str, *decisions: dict) -> None:
     httpx.post(f"{fake_openai}/decisions", json=list(decisions))
+
+
+def queue_tool_calls(fake_openai: str, *rounds: list[dict]) -> None:
+    httpx.post(f"{fake_openai}/tool_calls", json=list(rounds))
 
 
 def decision_requests(fake_openai: str, since: int) -> list[dict]:
@@ -42,7 +45,7 @@ def test_research_then_conclude(api: str, database_url: str, fake_openai: str) -
     add_notes(api, cookie)
     since = received_so_far(fake_openai)
     queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
-    httpx.post(f"{fake_openai}/answers/Search", json=[json.dumps({"query": "keys library"})])
+    queue_tool_calls(fake_openai, [{"name": "search_case_file", "args": {"query": "keys library"}}])
 
     events = run_agent(api, cookie, "Tell me about the backpack under the bench")
 

@@ -40,6 +40,19 @@ export default defineRailway(() => {
   // Evidence files (S3-compatible, private; the api hands out presigned URLs). Amsterdam: next to europe-west4.
   const evidence = bucket("evidence", { region: "ams" });
 
+  // The detective's web search (S13): SearXNG, the official image plus our settings (searxng/Dockerfile).
+  // No public domain: only the api queries it, over the private network. Rebuilt only when searxng/ changes.
+  const searxng = service("searxng", {
+    source: github("jacus/true-ai-detective", { branch: "main", rootDirectory: "searxng" }),
+    build: { builder: "DOCKERFILE", watchPatterns: ["/searxng/**"] },
+    healthcheck: "/healthz",
+    replicas: { "europe-west4-drams3a": 1 },
+    env: {
+      // Secret set with `railway variable set SEARXNG_SECRET --stdin --service searxng`; value stays on Railway.
+      SEARXNG_SECRET: preserve(),
+    },
+  });
+
   // FastAPI app, built by Railpack from this repo on every push to main.
   const api = service("api", {
     source: github("jacus/true-ai-detective", { branch: "main" }),
@@ -78,6 +91,8 @@ export default defineRailway(() => {
       // The detective's next-step decisions (JEV, via Vercel AI Gateway's Decisions API).
       // Secret set with `railway variable set AI_GATEWAY_API_KEY --stdin --service api`; value stays on Railway.
       AI_GATEWAY_API_KEY: preserve(),
+      // The research tools' web search: SearXNG's JSON API on the private network (it listens on 8080).
+      SEARX_URL: "http://${{searxng.RAILWAY_PRIVATE_DOMAIN}}:8080",
     },
   });
 
@@ -96,6 +111,6 @@ export default defineRailway(() => {
 
   return project("true-ai-detective", {
     variables: { managed: true },
-    resources: [pgvector, pgvectorVolume, evidence, api, web],
+    resources: [pgvector, pgvectorVolume, evidence, searxng, api, web],
   });
 });

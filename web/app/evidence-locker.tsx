@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { Evidence } from "@/lib/api";
 import styles from "./evidence.module.css";
@@ -17,17 +17,27 @@ const EVIDENCE = "/api/cases/current/evidence";
 // Shown as pictures; must match the api's INLINE_TYPES (everything else downloads).
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-/** Files, photos, links and map pins on the case. Each form posts to the api and appends what it returns. */
+/** Files, photos, links and map pins on the case, and the detective's findings. Each form posts to the api
+ * and appends what it returns; a new `version` (the detective filed findings) lists the locker again. */
 export function EvidenceLocker({
   initialEvidence,
+  version,
   onAdded,
 }: {
   initialEvidence: Evidence[];
+  version: number;
   onAdded: () => Promise<void>;
 }) {
   const [evidence, setEvidence] = useState(initialEvidence);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
+
+  useEffect(() => {
+    if (version === 0) return; // the page brought the locker as it was
+    void fetch(EVIDENCE)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((listed: Evidence[] | null) => listed && setEvidence(listed));
+  }, [version]);
 
   async function add(request: Promise<Response>): Promise<void> {
     const response = await request;
@@ -182,7 +192,30 @@ function EvidenceItem({ item }: { item: Evidence }) {
           {item.longitude?.toFixed(4)})
         </span>
       );
+    case "finding":
+      return (
+        <span>
+          <a href={file}>🔎 {item.label}</a>
+          <span className={styles.provenance}>
+            Found by the detective ({item.tool}),{" "}
+            <time dateTime={item.created_at}>{utc(item.created_at)}</time>
+            {item.url && (
+              <>
+                {" · "}
+                <a href={item.url} target="_blank" rel="noopener noreferrer">
+                  source
+                </a>
+              </>
+            )}
+          </span>
+        </span>
+      );
   }
+}
+
+// The same text on the server and in the browser, whatever their time zones (no hydration mismatch).
+function utc(timestamp: string): string {
+  return `${new Date(timestamp).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
 function Facts({ item }: { item: Evidence }) {

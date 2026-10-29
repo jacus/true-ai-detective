@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     decision_model: str = "typesafe-ai/jev"
     decisions_base_url: str = "https://ai-gateway.vercel.sh/v1"
     ai_gateway_api_key: str = ""  # secret, from the environment (.env locally, Railway in prod)
+    # Web search (S13): our own SearXNG meta-search service (compose.yaml locally, Railway's private network
+    # in prod), queried through its JSON API. Free and keyless; it asks several search engines at once.
+    searx_url: str = "http://localhost:8888"
     # Session cookie is HTTPS-only. Browsers treat localhost as secure, so this stays on locally too.
     session_cookie_secure: bool = True
     session_days: int = 14

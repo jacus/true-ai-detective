@@ -45,6 +45,11 @@
   color: #777;
   font-style: italic;
 }
+.provenance {
+  display: block;
+  color: #777;
+  font-size: 0.8rem;
+}
 .hint {
   color: #777;
 }

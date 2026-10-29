@@ -80,7 +80,8 @@ INSTRUCTIONS = (
     "You examine photos for a private investigator. Report only what is actually visible: "
     "readable text, notable objects or people, and hints about the place. Never guess identities."
 )
-vision = init_chat_model(settings.chat_model).with_structured_output(PhotoFacts)
+# Not streamed, like every structured answer: none of it is chat (see evidence_analysis.extractor).
+vision = init_chat_model(settings.chat_model, disable_streaming=True).with_structured_output(PhotoFacts)
 
 
 def read_exif(state: PhotoAnalysis) -> dict:

@@ -54,6 +54,8 @@ def test_a_file_is_uploaded_listed_and_downloaded_via_a_presigned_url(api: str, 
         "url": None,
         "latitude": None,
         "longitude": None,
+        "tool": None,  # only the detective's findings have a tool and its input
+        "tool_input": None,
         "created_at": None,
         # Text is read as a document (S9): the fake model quotes its first sentence.
         "facts": [

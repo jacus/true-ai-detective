@@ -5,10 +5,12 @@ import os
 import subprocess
 
 import httpx
+import psycopg
 from conftest import APP_DB_PASSWORD, run_agent, sign_up, unique_email
 from test_evidence import EVIDENCE, PASSWORD, listed
 from test_memory import recalled
 
+BEFORE_PIN_FACTS = "358d2dfaca6a"  # the revision the pin facts migration (bec1fbf7cd9e) builds on
 CEREMONY = 'The client marked "Ceremony" on the map at 50.06143, 19.93658'
 
 
@@ -48,12 +50,18 @@ def test_pins_added_before_get_their_fact_from_the_migration(
     api: str, database_url: str, owner_database_url: str
 ) -> None:
     cookie = sign_up(api, database_url, unique_email(), PASSWORD)
-    add_pin(api, cookie)
+    pin_id = add_pin(api, cookie).json()["id"]
     env = {**os.environ, "MIGRATIONS_DATABASE_URL": owner_database_url, "APP_DB_PASSWORD": APP_DB_PASSWORD}
 
-    # Down removes every pin's fact (as if the pin predated this change); up restores it in the api's words.
-    subprocess.run(["alembic", "downgrade", "-1"], env=env, check=True, capture_output=True)
-    assert listed(api, cookie)[0]["facts"] == []
-    subprocess.run(["alembic", "upgrade", "head"], env=env, check=True, capture_output=True)
+    # Down to before the pin facts migration removes every pin's fact (as if the pin predated that change);
+    # up restores it in the api's words. Named, not "-1": later migrations sit on top of it. While down, the
+    # schema is older than the api's, so the database itself is checked.
+    subprocess.run(["alembic", "downgrade", BEFORE_PIN_FACTS], env=env, check=True, capture_output=True)
+    try:
+        with psycopg.connect(owner_database_url) as owner:
+            facts = owner.execute("SELECT count(*) FROM facts WHERE evidence_id = %s", (pin_id,)).fetchone()
+        assert facts == (0,)
+    finally:  # the database is shared by the whole test session
+        subprocess.run(["alembic", "upgrade", "head"], env=env, check=True, capture_output=True)
 
     assert [f["statement"] for f in listed(api, cookie)[0]["facts"]] == [CEREMONY]

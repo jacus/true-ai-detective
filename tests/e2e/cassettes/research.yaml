@@ -1,0 +1,836 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - example.com
+      user-agent:
+      - TrueAIDetective/1.0
+    method: GET
+    uri: https://example.com/
+  response:
+    body:
+      string: '<!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon
+        href=data:,><meta name=viewport content="width=device-width,initial-scale=1"><title>Example
+        Domain</title><style>html{color-scheme:light dark;background:light-dark(#eee,#222)}body{font:16px/1.6
+        system-ui,sans-serif;max-width:26em;margin:auto;padding:25vh 2em 2em;text-align:center}</style></head><body><p>This
+        domain is for use in documentation examples without needing permission. This
+        is not a service; avoid relying on it for testing and monitoring purposes.</p><script
+        src=/s.js></script></body></html>
+
+        '
+    headers:
+      age:
+      - '7'
+      allow:
+      - GET, HEAD
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - HIT
+      cf-ray:
+      - a5248b271aae0c5c-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '577'
+      content-type:
+      - text/html; charset=utf-8
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      last-modified:
+      - Thu, 29 Oct 2026 13:15:03 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/rdap+json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - rdap.org
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://rdap.org/domain/example.com
+  response:
+    body:
+      string: ''
+    headers:
+      access-control-allow-origin:
+      - '*'
+      age:
+      - '41111'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cache-control:
+      - public, max-age=28800
+      cf-cache-status:
+      - HIT
+      cf-ray:
+      - a5248b27182741d0-WAW
+      connection:
+      - keep-alive
+      content-type:
+      - text/html
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      expires:
+      - Fri, 30 Oct 2026 07:56:18 GMT
+      fly-request-id:
+      - 01M63AHSCQ2RXBRK60ZP7M0WPF-fra
+      location:
+      - https://rdap.verisign.com/com/v1/domain/example.com
+      nel:
+      - '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}'
+      referrer-policy:
+      - origin
+      report-to:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=DcRN17zZz1eqWImBFE7Wi7ZhnMrlmPHGJnsGyAGN6m7lYV%2FwHAIh8lH%2BOAhc%2FP9WQ3IDti3toBhEL0NHUz0A7v1r2%2BCbCx0kSJNv4tmoiXgk83jxhUET0Oxzzw%3D%3D"}]}'
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=15552000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      via:
+      - 1.1 fly.io, 1.1 fly.io
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 302
+      message: Found
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/dns-json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - cloudflare-dns.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cloudflare-dns.com/dns-query?name=example.com&type=AAAA
+  response:
+    body:
+      string: '{"Status":0,"TC":false,"RD":true,"RA":true,"AD":true,"CD":false,"Question":[{"name":"example.com","type":28}],"Answer":[{"name":"example.com","type":28,"TTL":92,"data":"2606:4700:10::6814:179a"},{"name":"example.com","type":28,"TTL":92,"data":"2606:4700:10::ac42:93f3"}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-ray:
+      - a5248b274f49d2c5-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '271'
+      content-type:
+      - application/dns-json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      server:
+      - cloudflare
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/dns-json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - cloudflare-dns.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cloudflare-dns.com/dns-query?name=example.com&type=NS
+  response:
+    body:
+      string: '{"Status":0,"TC":false,"RD":true,"RA":true,"AD":true,"CD":false,"Question":[{"name":"example.com","type":2}],"Answer":[{"name":"example.com","type":2,"TTL":71507,"data":"hera.ns.cloudflare.com."},{"name":"example.com","type":2,"TTL":71507,"data":"elliott.ns.cloudflare.com."}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-ray:
+      - a5248b274e54da8c-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '277'
+      content-type:
+      - application/dns-json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      server:
+      - cloudflare
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/dns-json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - cloudflare-dns.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cloudflare-dns.com/dns-query?name=example.com&type=A
+  response:
+    body:
+      string: '{"Status":0,"TC":false,"RD":true,"RA":true,"AD":true,"CD":false,"Question":[{"name":"example.com","type":1}],"Answer":[{"name":"example.com","type":1,"TTL":6,"data":"104.20.23.154"},{"name":"example.com","type":1,"TTL":6,"data":"172.66.147.243"}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-ray:
+      - a5248b274b07c3ef-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '247'
+      content-type:
+      - application/dns-json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      server:
+      - cloudflare
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/dns-json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - cloudflare-dns.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cloudflare-dns.com/dns-query?name=example.com&type=MX
+  response:
+    body:
+      string: '{"Status":0,"TC":false,"RD":true,"RA":true,"AD":true,"CD":false,"Question":[{"name":"example.com","type":15}],"Answer":[{"name":"example.com","type":15,"TTL":181,"data":"0
+        ."}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-ray:
+      - a5248b27dd9fb588-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '177'
+      content-type:
+      - application/dns-json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      server:
+      - cloudflare
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/dns-json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - cloudflare-dns.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cloudflare-dns.com/dns-query?name=example.com&type=TXT
+  response:
+    body:
+      string: '{"Status":0,"TC":false,"RD":true,"RA":true,"AD":true,"CD":false,"Question":[{"name":"example.com","type":16}],"Answer":[{"name":"example.com","type":16,"TTL":300,"data":"\"v=spf1
+        -all\""},{"name":"example.com","type":16,"TTL":300,"data":"\"_k2n1y4vw3qtb4skdx9e7dxt97qrmmq9\""}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-ray:
+      - a5248b27de2060c9-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '278'
+      content-type:
+      - application/dns-json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      server:
+      - cloudflare
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/rdap+json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - rdap.verisign.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://rdap.verisign.com/com/v1/domain/example.com
+  response:
+    body:
+      string: '{"objectClassName":"domain","handle":"2336799_DOMAIN_COM-VRSN","ldhName":"EXAMPLE.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/example.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/example.com","type":"application\/rdap+json"}],"status":["client
+        delete prohibited","client transfer prohibited","client update prohibited"],"entities":[{"objectClassName":"entity","handle":"376","roles":["registrar"],"publicIds":[{"type":"IANA
+        Registrar ID","identifier":"376"}],"vcardArray":["vcard",[["version",{},"text","4.0"],["fn",{},"text","RESERVED-Internet
+        Assigned Numbers Authority"]]],"entities":[{"objectClassName":"entity","roles":["abuse"],"vcardArray":["vcard",[["version",{},"text","4.0"],["fn",{},"text",""],["tel",{"type":"voice"},"uri",""],["email",{},"text",""]]]}]}],"events":[{"eventAction":"registration","eventDate":"1995-08-14T04:00:00Z"},{"eventAction":"expiration","eventDate":"2027-08-13T04:00:00Z"},{"eventAction":"last
+        changed","eventDate":"2026-08-14T08:01:43Z"},{"eventAction":"last update of
+        RDAP database","eventDate":"2026-10-29T19:21:15Z"}],"secureDNS":{"delegationSigned":true,"dsData":[{"keyTag":2371,"algorithm":13,"digestType":2,"digest":"C988EC423E3880EB8DD8A46FE06CA230EE23F35B578D64E78B29C3E1C83D245A"}]},"nameservers":[{"objectClassName":"nameserver","ldhName":"ELLIOTT.NS.CLOUDFLARE.COM"},{"objectClassName":"nameserver","ldhName":"HERA.NS.CLOUDFLARE.COM"}],"rdapConformance":["rdap_level_0","icann_rdap_technical_implementation_guide_1","icann_rdap_response_profile_1"],"notices":[{"title":"Terms
+        of Service","description":["Service subject to Terms of Use."],"links":[{"href":"https:\/\/www.verisign.com\/domain-names\/registration-data-access-protocol\/terms-service\/index.xhtml","type":"text\/html","value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/example.com","rel":"terms-of-service"}]},{"title":"Status
+        Codes","description":["For more information on domain status codes, please
+        visit https:\/\/icann.org\/epp"],"links":[{"href":"https:\/\/icann.org\/epp","type":"text\/html","value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/example.com","rel":"glossary"}]},{"title":"RDDS
+        Inaccuracy Complaint Form","description":["URL of the ICANN RDDS Inaccuracy
+        Complaint Form: https:\/\/icann.org\/wicf"],"links":[{"href":"https:\/\/icann.org\/wicf","type":"text\/html","value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/example.com","rel":"help"}]}]}'
+    headers:
+      access-control-allow-origin:
+      - '*'
+      content-length:
+      - '2440'
+      content-type:
+      - application/rdap+json
+      strict-transport-security:
+      - max-age=15768000; includeSubDomains; preload
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - web.archive.org
+      user-agent:
+      - TrueAIDetective/1.0
+    method: GET
+    uri: https://web.archive.org/web/20150101id_/https://example.com/
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - keep-alive
+      content-length:
+      - '0'
+      content-type:
+      - text/plain; charset=utf-8
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      location:
+      - https://web.archive.org/web/20150102000131id_/http://example.com/
+      permissions-policy:
+      - interest-cohort=()
+      referrer-policy:
+      - no-referrer-when-downgrade
+      server:
+      - nginx
+      server-timing:
+      - captures_list;dur=0.701810, exclusion.robots;dur=0.048668, exclusion.robots.policy;dur=0.034030,
+        esindex;dur=0.009102, cdx.remote;dur=15.399022, LoadShardBlock;dur=8695.090341,
+        PetaboxLoader3.datanode;dur=8645.077020, PetaboxLoader3.resolve;dur=15.547384
+      - TR;dur=0,Tw;dur=0,Tc;dur=0
+      - HIT
+      set-cookie:
+      - wb-p-SERVER=wwwb-app247; path=/
+      x-app-server:
+      - wwwb-app247-dc8
+      x-archive-redirect-reason:
+      - found capture at 20150102000131
+      x-as:
+      - '9141'
+      x-location:
+      - All
+      x-na:
+      - '0'
+      x-nid:
+      - Play
+      x-page-cache:
+      - HIT
+      x-rl:
+      - '0'
+      x-sd:
+      - '0'
+      x-tr:
+      - '8836'
+      x-ts:
+      - '302'
+    status:
+      code: 302
+      message: FOUND
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      cookie:
+      - wb-p-SERVER=wwwb-app247
+      host:
+      - web.archive.org
+      user-agent:
+      - TrueAIDetective/1.0
+    method: GET
+    uri: https://web.archive.org/web/20150102000131id_/http://example.com/
+  response:
+    body:
+      string: "<!doctype html>\n<html>\n<head>\n    <title>Example Domain</title>\n\n
+        \   <meta charset=\"utf-8\" />\n    <meta http-equiv=\"Content-type\" content=\"text/html;
+        charset=utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\" />\n    <style type=\"text/css\">\n    body {\n        background-color:
+        #f0f0f2;\n        margin: 0;\n        padding: 0;\n        font-family: \"Open
+        Sans\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;\n        \n    }\n
+        \   div {\n        width: 600px;\n        margin: 5em auto;\n        padding:
+        50px;\n        background-color: #fff;\n        border-radius: 1em;\n    }\n
+        \   a:link, a:visited {\n        color: #38488f;\n        text-decoration:
+        none;\n    }\n    @media (max-width: 700px) {\n        body {\n            background-color:
+        #fff;\n        }\n        div {\n            width: auto;\n            margin:
+        0 auto;\n            border-radius: 0;\n            padding: 1em;\n        }\n
+        \   }\n    </style>    \n</head>\n\n<body>\n<div>\n    <h1>Example Domain</h1>\n
+        \   <p>This domain is established to be used for illustrative examples in
+        documents. You may use this\n    domain in examples without prior coordination
+        or asking for permission.</p>\n    <p><a href=\"http://www.iana.org/domains/example\">More
+        information...</a></p>\n</div>\n</body>\n</html>\n"
+    headers:
+      cache-control:
+      - max-age=1800
+      connection:
+      - keep-alive
+      content-length:
+      - '1270'
+      content-security-policy:
+      - 'default-src ''self'' ''unsafe-eval'' ''unsafe-inline'' data: blob: archive.org
+        web.archive.org web-static.archive.org wayback-api.archive.org athena.archive.org
+        analytics.archive.org pragma.archivelab.org wwwb-events.archive.org'
+      content-type:
+      - text/html
+      date:
+      - Thu, 29 Oct 2026 19:21:30 GMT
+      link:
+      - <http://user:pass@example.com/>; rel="original", <https://web.archive.org/web/timemap/link/http://user:pass@example.com/>;
+        rel="timemap"; type="application/link-format", <https://web.archive.org/web/http://user:pass@example.com/>;
+        rel="timegate"
+      memento-datetime:
+      - Fri, 02 Jan 2015 00:01:31 GMT
+      permissions-policy:
+      - interest-cohort=()
+      referrer-policy:
+      - no-referrer-when-downgrade
+      server:
+      - nginx
+      server-timing:
+      - captures_list;dur=0.688885, exclusion.robots;dur=0.046296, exclusion.robots.policy;dur=0.033808,
+        esindex;dur=0.009011, cdx.remote;dur=117.664134, LoadShardBlock;dur=5849.622085,
+        PetaboxLoader3.datanode;dur=5126.404371, load_resource;dur=243.403487, PetaboxLoader3.resolve;dur=128.702517
+      - TR;dur=0,Tw;dur=0,Tc;dur=0
+      - HIT
+      transfer-encoding:
+      - chunked
+      x-app-server:
+      - wwwb-app247-dc8
+      x-archive-orig-accept-ranges:
+      - bytes
+      x-archive-orig-cache-control:
+      - max-age=604800
+      x-archive-orig-connection:
+      - close
+      x-archive-orig-content-length:
+      - '1270'
+      x-archive-orig-date:
+      - Fri, 02 Jan 2015 00:01:31 GMT
+      x-archive-orig-etag:
+      - '"359670651"'
+      x-archive-orig-expires:
+      - Fri, 09 Jan 2015 00:01:31 GMT
+      x-archive-orig-last-modified:
+      - Fri, 09 Aug 2013 23:54:35 GMT
+      x-archive-orig-server:
+      - ECS (cpm/F9FC)
+      x-archive-orig-x-cache:
+      - HIT
+      x-archive-orig-x-ec-custom-error:
+      - '1'
+      x-archive-src:
+      - ARCHIVEIT-5601-CDL-20150101-00000/ARCHIVEIT-5601-CDL-20150101235935-00000-spoonbill-00553608.arc.gz
+      x-as:
+      - '9141'
+      x-location:
+      - All
+      x-na:
+      - '0'
+      x-nid:
+      - Play
+      x-page-cache:
+      - HIT
+      x-rl:
+      - '0'
+      x-sd:
+      - '0'
+      x-tr:
+      - '7024'
+      x-ts:
+      - '200'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - 127.0.0.1:8888
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: http://127.0.0.1:8888/search?q=example.com+domain+owner&format=json
+  response:
+    body:
+      string: '{"query": "example.com domain owner", "results": [{"template": "default.html",
+        "title": "example.com - Wikipedia", "content": "The domains example.com, example.net,
+        example.org and example.edu are intended for general use in any kind of documentation,
+        such as technical and software\u00a0...", "img_src": "", "iframe_src": "",
+        "audio_src": "", "thumbnail": "", "publishedDate": null, "pubdate": "", "length":
+        null, "views": "", "author": "", "metadata": "", "priority": "", "engines":
+        ["google cse"], "open_group": false, "close_group": false, "positions": [1],
+        "score": 1.0, "category": "general", "url": "https://en.wikipedia.org/wiki/Example.com",
+        "engine": "google cse", "parsed_url": ["https", "en.wikipedia.org", "/wiki/Example.com",
+        "", "", ""]}, {"template": "default.html", "title": "Who owns example.com,
+        and how can I obtain the URL for myself?", "content": "12 sty 2024 ... For
+        example, quora.com is owned by Quora, Inc . In some cases, there might not
+        be available information for the owner of a domain.", "img_src": "", "iframe_src":
+        "", "audio_src": "", "thumbnail": "", "publishedDate": null, "pubdate": "",
+        "length": null, "views": "", "author": "", "metadata": "", "priority": "",
+        "engines": ["google cse"], "open_group": false, "close_group": false, "positions":
+        [2], "score": 0.5, "category": "general", "url": "https://www.quora.com/Who-owns-example-com-and-how-can-I-obtain-the-URL-for-myself",
+        "engine": "google cse", "parsed_url": ["https", "www.quora.com", "/Who-owns-example-com-and-how-can-I-obtain-the-URL-for-myself",
+        "", "", ""]}, {"template": "default.html", "title": "example.com WHOIS Domain
+        Name Lookup - Who.is", "content": "14 sie 1995 ... The domain example.com
+        is registered. You can still try to buy it here. Registrar Information. Registrar:
+        RESERVED-Internet Assigned Numbers\u00a0...", "img_src": "", "iframe_src":
+        "", "audio_src": "", "thumbnail": "", "publishedDate": null, "pubdate": "",
+        "length": null, "views": "", "author": "", "metadata": "", "priority": "",
+        "engines": ["google cse"], "open_group": false, "close_group": false, "positions":
+        [6], "score": 0.16666666666666666, "category": "general", "url": "https://who.is/whois/example.com",
+        "engine": "google cse", "parsed_url": ["https", "who.is", "/whois/example.com",
+        "", "", ""]}, {"template": "default.html", "title": "Example.com - Simple
+        English Wikipedia, the free encyclopedia", "content": "The domain names example.com,
+        example.net, example.org, and example.edu are domain names in the Domain Name
+        System of the Internet. They are special domains\u00a0...", "img_src": "",
+        "iframe_src": "", "audio_src": "", "thumbnail": "", "publishedDate": null,
+        "pubdate": "", "length": null, "views": "", "author": "", "metadata": "",
+        "priority": "", "engines": ["google cse"], "open_group": false, "close_group":
+        false, "positions": [10], "score": 0.1, "category": "general", "url": "https://simple.wikipedia.org/wiki/Example.com",
+        "engine": "google cse", "parsed_url": ["https", "simple.wikipedia.org", "/wiki/Example.com",
+        "", "", ""]}, {"template": "default.html", "title": "How to Find Out Who Owns
+        a Domain Name and Get It - Elementor", "content": "3 lis 2025 ... Check Nameservers:
+        The WHOIS report shows the nameservers (e.g., ns1.elementor.com). This tells
+        you who hosts the site. You can''t get owner info\u00a0...", "img_src": "",
+        "iframe_src": "", "audio_src": "", "thumbnail": "", "publishedDate": null,
+        "pubdate": "", "length": null, "views": "", "author": "", "metadata": "",
+        "priority": "", "engines": ["google cse"], "open_group": false, "close_group":
+        false, "positions": [11], "score": 0.09090909090909091, "category": "general",
+        "url": "https://elementor.com/blog/how-to-find-out-who-owns-a-domain-name-and-get-it/",
+        "engine": "google cse", "parsed_url": ["https", "elementor.com", "/blog/how-to-find-out-who-owns-a-domain-name-and-get-it/",
+        "", "", ""]}, {"template": "default.html", "title": "Identify your domain
+        registrar - Google Workspace Help", "content": "A domain registrar is an internet
+        company that manages your domain name, such as, example.com. ... Verify you
+        are the owner of your domain; Route your company''s\u00a0...", "img_src":
+        "", "iframe_src": "", "audio_src": "", "thumbnail": "", "publishedDate": null,
+        "pubdate": "", "length": null, "views": "", "author": "", "metadata": "",
+        "priority": "", "engines": ["google cse"], "open_group": false, "close_group":
+        false, "positions": [12], "score": 0.08333333333333333, "category": "general",
+        "url": "https://knowledge.workspace.google.com/admin/domains/identify-your-domain-registrar",
+        "engine": "google cse", "parsed_url": ["https", "knowledge.workspace.google.com",
+        "/admin/domains/identify-your-domain-registrar", "", "", ""]}, {"template":
+        "default.html", "title": "example.com - Wikidata", "content": "3 pa\u017a
+        2026 ... User menu. Create account \u00b7 Log in. [dismiss] ... Example Domain;
+        www.example.com; www.example.edu; www.example.net; www\u00a0...", "img_src":
+        "", "iframe_src": "", "audio_src": "", "thumbnail": "", "publishedDate": null,
+        "pubdate": "", "length": null, "views": "", "author": "", "metadata": "",
+        "priority": "", "engines": ["google cse"], "open_group": false, "close_group":
+        false, "positions": [15], "score": 0.06666666666666667, "category": "general",
+        "url": "https://www.wikidata.org/wiki/Q306656", "engine": "google cse", "parsed_url":
+        ["https", "www.wikidata.org", "/wiki/Q306656", "", "", ""]}, {"template":
+        "default.html", "title": "Domains Glossary - DNSimple Help", "content": "For
+        example, in dnsimple.com , dnsimple is the second-level domain. ... The legal
+        owner of a domain name. The registrant contact information is the\u00a0...",
+        "img_src": "", "iframe_src": "", "audio_src": "", "thumbnail": "", "publishedDate":
+        null, "pubdate": "", "length": null, "views": "", "author": "", "metadata":
+        "", "priority": "", "engines": ["google cse"], "open_group": false, "close_group":
+        false, "positions": [18], "score": 0.05555555555555555, "category": "general",
+        "url": "https://support.dnsimple.com/articles/domains-glossary/", "engine":
+        "google cse", "parsed_url": ["https", "support.dnsimple.com", "/articles/domains-glossary/",
+        "", "", ""]}, {"template": "default.html", "title": "Who Owns Example.com:
+        The Definitive Domain Ownership Guide ...", "content": "3 dni temu ... The
+        query \"who owns example com\" targets one of the most famous and universally
+        recognized placeholder domains on the global internet.", "img_src": "", "iframe_src":
+        "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcRgSP7CWOcYg_a0hlzGlAMKCHGUlIc_UfF1Xfn9j6VN9Y9W_l5Z0dpcGC0",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [3], "score": 0.3333333333333333,
+        "category": "general", "url": "https://escapesf.net/owns-example-com-btbc.html",
+        "engine": "google cse", "parsed_url": ["https", "escapesf.net", "/owns-example-com-btbc.html",
+        "", "", ""]}, {"template": "default.html", "title": "TIL that example.com
+        is an unregisterable domain, that was set up ...", "content": "19 lut 2010
+        ... TIL that example.com is an unregisterable domain, that was set up for
+        anyone to be able to use for test data. \u00b7 Comments Section.", "img_src":
+        "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcQesv2rmgajBsDVaK_pdhNl38P5QXVY1fVZW37Dr_G2Y1EPBLUDBfBdDQU",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [4], "score": 0.25, "category":
+        "general", "url": "https://www.reddit.com/r/todayilearned/comments/b3sqw/til_that_examplecom_is_an_unregisterable_domain/",
+        "engine": "google cse", "parsed_url": ["https", "www.reddit.com", "/r/todayilearned/comments/b3sqw/til_that_examplecom_is_an_unregisterable_domain/",
+        "", "", ""]}, {"template": "default.html", "title": "Typo traps: analyzing
+        traffic to exmaple.com (or is it example.com?)", "content": "22 wrz 2023 ...
+        Cloudflare has owned exmaple.com for a few years now, but don''t confuse it
+        with example.com! example.com is a reserved domain name set by\u00a0...",
+        "img_src": "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcRZWWs_7ICwRoXMLnfeugpWqmSiVT_nTtknrtjMWXJZQ9bsZHN7oE5FC_qc",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [5], "score": 0.2, "category": "general",
+        "url": "https://blog.cloudflare.com/typo-traps-analyzing-traffic-to-exmaple-com-or-is-it-example-com/",
+        "engine": "google cse", "parsed_url": ["https", "blog.cloudflare.com", "/typo-traps-analyzing-traffic-to-exmaple-com-or-is-it-example-com/",
+        "", "", ""]}, {"template": "default.html", "title": "Whois example.com", "content":
+        "Register a DomainGet your domain name now Domain SuggestionsGet help picking
+        a domain name ... owner. You will be redirected to our trusted partner Sedo\u00a0...",
+        "img_src": "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcRT8KjLvr4j7VaeIkR_-5FIxN_aiY4P-q1U7Ku0erw9gFLmx58X0uOyu64",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [7], "score": 0.14285714285714285,
+        "category": "general", "url": "https://www.whois.com/whois/example.com", "engine":
+        "google cse", "parsed_url": ["https", "www.whois.com", "/whois/example.com",
+        "", "", ""]}, {"template": "default.html", "title": "Example.com Just Launched
+        The Biggest Redesign In Decades", "content": "6 pa\u017a 2026 ... example.com
+        is a reserved domain name set aside by the Internet Assigned Numbers Authority
+        (IANA) for documentation purposes.", "img_src": "", "iframe_src": "", "audio_src":
+        "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcScYpnWsny9zjl5X9oOprnMpRu358ZLmX7fCu9Jy3SLQfoy6pO2h28k5Q82",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [8], "score": 0.125, "category":
+        "general", "url": "https://www.debugbear.com/blog/example-dot-com-redesign-history",
+        "engine": "google cse", "parsed_url": ["https", "www.debugbear.com", "/blog/example-dot-com-redesign-history",
+        "", "", ""]}, {"template": "default.html", "title": "Cybersecurity Web Reconnaissance:
+        Understanding WHOIS & DNS ...", "content": "20 pa\u017a 2024 ... Domain Name:
+        The domain in question (e.g., example.com). Registrar ... gives you information
+        about domain ownership and management. DNS\u00a0...", "img_src": "", "iframe_src":
+        "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcSw_WwpOyQOAU1yhMGflvF9v5R4MXryMgD32Y6SavP0vV7p4xJX6vz9D_z5",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [9], "score": 0.1111111111111111,
+        "category": "general", "url": "https://medium.com/@old.noisy.speaker/cybersecurity-web-reconnaissance-understanding-whois-dns-fundamentals-933d5af3fe68",
+        "engine": "google cse", "parsed_url": ["https", "medium.com", "/@old.noisy.speaker/cybersecurity-web-reconnaissance-understanding-whois-dns-fundamentals-933d5af3fe68",
+        "", "", ""]}, {"template": "default.html", "title": "Selling my unused domain
+        ''example.com'' to the trademark holder ...", "content": "26 sty 2015 ...
+        Selling my unused domain ''example.com'' to the trademark holder and owner
+        of ''example.net'' ; dan. \u2013 dan \u00b7 2015-01-26 00:57:25 +00:00 \u00b7
+        Jan 26, 2015\u00a0...", "img_src": "", "iframe_src": "", "audio_src": "",
+        "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcQ8smXl657El7yU0w6J4GSy-qHXT4K02THshTuw6DZylBzHKPkAgKsOyK4",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [13], "score": 0.07692307692307693,
+        "category": "general", "url": "https://webmasters.stackexchange.com/questions/76490/selling-my-unused-domain-example-com-to-the-trademark-holder-and-owner-of-exa",
+        "engine": "google cse", "parsed_url": ["https", "webmasters.stackexchange.com",
+        "/questions/76490/selling-my-unused-domain-example-com-to-the-trademark-holder-and-owner-of-exa",
+        "", "", ""]}, {"template": "default.html", "title": "What Is WHOIS - Use It
+        To Lookup A Domain - Hosted.com Blog", "content": "21 maj 2025 ... WHOIS shows
+        public details about domain ownership, registration dates, and name servers.
+        \u00b7 You can access WHOIS using online tools or the command\u00a0...", "img_src":
+        "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcSWVMgjsSE10RM0QhuaS5_1h5wXH7BwlWLZ87KIdEPAGVBhBwjDqpphwPg",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [14], "score": 0.07142857142857142,
+        "category": "general", "url": "https://www.hosted.com/blog/what-is-whois/",
+        "engine": "google cse", "parsed_url": ["https", "www.hosted.com", "/blog/what-is-whois/",
+        "", "", ""]}, {"template": "default.html", "title": "Web Domain Explained:
+        Types, Choosing Aspects | Ramotion Agency", "content": "26 lut 2026 ... ...
+        example.com\" for user profiles or personal blogs. Choosing the Right Domain
+        Name. The right domain name is crucial for establishing a solid\u00a0...",
+        "img_src": "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcTFOmPjKqPF1M0EsOKyQsgQvaaLG-sQMM2q9BtFx16FmJ93ozL3WlT6fatD",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [16], "score": 0.0625, "category":
+        "general", "url": "https://www.ramotion.com/blog/what-is-web-domain/", "engine":
+        "google cse", "parsed_url": ["https", "www.ramotion.com", "/blog/what-is-web-domain/",
+        "", "", ""]}, {"template": "default.html", "title": "Domain Name Management:
+        What It Is and Why It Matters - Shopify", "content": "6 mar 2025 ... Web domains.
+        A web domain (e.g., example.com) is the unique name used to identify a website
+        on the Internet. Domain management ensures it\u00a0...", "img_src": "", "iframe_src":
+        "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcQwpgdHqTvwyOXuNPpGEVKF6YJ9QAJHSb8BIlcXhs8ean1HOrWeXG5DhO0",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [17], "score": 0.058823529411764705,
+        "category": "general", "url": "https://www.shopify.com/uk/blog/domain-name-management",
+        "engine": "google cse", "parsed_url": ["https", "www.shopify.com", "/uk/blog/domain-name-management",
+        "", "", ""]}, {"template": "default.html", "title": "Domain Name System security
+        for domain owners | CGA", "content": "14 sty 2021 ... Protecting DNS name
+        servers. Protecting DNS servers from compromise requires a strong commitment
+        to cyber security, for example, by: Keeping DNS\u00a0...", "img_src": "",
+        "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcTCSPP4JY0ec-2IP4_LdWobY4NvsgFb-QmLNxqxTo9Rmrxj_oAdzt4UnYk",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [19], "score": 0.05263157894736842,
+        "category": "general", "url": "https://www.cyber.gov.au/publication/domain-name-system-security-for-domain-owners",
+        "engine": "google cse", "parsed_url": ["https", "www.cyber.gov.au", "/publication/domain-name-system-security-for-domain-owners",
+        "", "", ""]}, {"template": "default.html", "title": "Free Domain Owner & Registration
+        Check - Whois Lookup - ScyScan", "content": "A reliable Whois lookup tool
+        queries the right registry in real time \u2014 .com and .net through Verisign,
+        country-code TLDs through their own registries, and new\u00a0...", "img_src":
+        "", "iframe_src": "", "audio_src": "", "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcQC9QIuSpLqvO1ZRGve4MdW6si7THiH1QbUYepjIXscO3t_x4JgfquKLvzp",
+        "publishedDate": null, "pubdate": "", "length": null, "views": "", "author":
+        "", "metadata": "", "priority": "", "engines": ["google cse"], "open_group":
+        false, "close_group": false, "positions": [20], "score": 0.05, "category":
+        "general", "url": "https://www.scyscan.com/whois-lookup/", "engine": "google
+        cse", "parsed_url": ["https", "www.scyscan.com", "/whois-lookup/", "", "",
+        ""]}], "answers": [], "corrections": [], "infoboxes": [], "suggestions": [],
+        "unresponsive_engines": [["brave", "Suspended: too many requests"], ["duckduckgo",
+        "CAPTCHA"]]}'
+    headers:
+      content-length:
+      - '17421'
+      content-type:
+      - application/json
+      date:
+      - Thu, 29 Oct 2026 19:21:29 GMT
+      referrer-policy:
+      - no-referrer
+      server:
+      - granian
+      server-timing:
+      - total;dur=1008.073, render;dur=0, total_0_wikipedia;dur=50.719, total_1_google
+        cse;dur=276.882, total_2_wikidata;dur=1005.385, load_0_wikipedia;dur=47.572,
+        load_1_google cse;dur=255.885, load_2_wikidata;dur=999.117
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-robots-tag:
+      - noindex, nofollow
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      host:
+      - example.com
+      user-agent:
+      - TrueAIDetective/1.0
+    method: GET
+    uri: https://example.com/no-such-page
+  response:
+    body:
+      string: '<!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon
+        href=data:,><meta name=viewport content="width=device-width,initial-scale=1"><title>Example
+        Domain</title><style>html{color-scheme:light dark;background:light-dark(#eee,#222)}body{font:16px/1.6
+        system-ui,sans-serif;max-width:26em;margin:auto;padding:25vh 2em 2em;text-align:center}</style></head><body><p>This
+        domain is for use in documentation examples without needing permission. This
+        is not a service; avoid relying on it for testing and monitoring purposes.</p><script
+        src=/s.js></script></body></html>
+
+        '
+    headers:
+      age:
+      - '654'
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - HIT
+      cf-ray:
+      - a524b5488a74c290-WAW
+      connection:
+      - keep-alive
+      content-length:
+      - '577'
+      content-type:
+      - text/html; charset=utf-8
+      date:
+      - Thu, 29 Oct 2026 19:50:15 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+    status:
+      code: 404
+      message: Not Found
+version: 1

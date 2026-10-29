@@ -48,7 +48,8 @@ def invite(
 
 @app.command()
 def reindex() -> None:
-    """Rebuild every case's memory (RAG): its facts, and the text of its documents read again from the bucket.
+    """Rebuild every case's memory (RAG): its facts, and the text of its documents and of the detective's
+    findings, read again from the bucket.
 
     No model calls, only embeddings. Links are re-indexed by their facts (their pages aren't fetched again).
     """
@@ -57,7 +58,8 @@ def reindex() -> None:
     from detective.evidence import is_document
 
     async def chunks_of(evidence: Evidence) -> list[memory.Chunk]:
-        if evidence.kind != EvidenceKind.file or not is_document(evidence.content_type or ""):
+        stored_text = evidence.kind in (EvidenceKind.file, EvidenceKind.finding)
+        if not stored_text or not is_document(evidence.content_type or ""):
             return []
         stored = await asyncio.to_thread(
             s3.get_object, Bucket=settings.evidence_bucket, Key=object_key(evidence.case_id, evidence.id)

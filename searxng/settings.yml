@@ -1,0 +1,9 @@
+# SearXNG for the detective's web search (S13): the default engines, plus the JSON API the api queries.
+# Reachable on the private network only (Railway) or on localhost (compose), so no rate limiter or public UI.
+use_default_settings: true
+server:
+  limiter: false
+  public_instance: false
+  image_proxy: false
+search:
+  formats: [html, json]

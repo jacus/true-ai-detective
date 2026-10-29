@@ -1,4 +1,5 @@
-"""Evidence locker: files (photos too), links and map pins attached to the client's case.
+"""Evidence locker: files (photos too), links and map pins attached to the client's case, and what the
+detective found researching it (findings, filed by the `research` module with their provenance).
 
 Upload goes through the api (it checks size and stores under the case); download is a redirect to a
 short-lived presigned S3 URL, minted only after row-level security found the evidence in the caller's case.
@@ -9,7 +10,7 @@ the facts found in them; the facts and the text read are then indexed in the cas
 import io
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -23,10 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from detective import memory
 from detective.cases import current_case
 from detective.db import get_db
-from detective.evidence_analysis import analyse
+from detective.evidence_analysis import analyse, facts_from
 from detective.memory import Chunk
 from detective.models import Case, Evidence, EvidenceKind, Fact, FactKind
-from detective.photo_analysis import Found
 from detective.settings import settings
 from detective.storage import object_key, s3
 
@@ -63,6 +63,8 @@ class EvidenceOut(BaseModel):
     url: str | None
     latitude: float | None
     longitude: float | None
+    tool: str | None  # a finding's provenance: the research tool, its input, and `url` its source
+    tool_input: dict[str, Any] | None
     created_at: datetime
     facts: list[FactOut]
 
@@ -79,19 +81,6 @@ class PinIn(BaseModel):
 
 def pin_statement(pin: PinIn) -> str:
     return f'The client marked "{pin.label}" on the map at {pin.latitude:.5f}, {pin.longitude:.5f}'
-
-
-def facts_from(case: Case, found: list[Found]) -> list[Fact]:
-    return [
-        Fact(
-            case_id=case.id,
-            kind=f["kind"],
-            statement=f["statement"],
-            quote=f.get("quote"),
-            location=f.get("location"),
-        )
-        for f in found
-    ]
 
 
 async def add(db: AsyncSession, evidence: Evidence, chunks: list[Chunk] | None = None) -> EvidenceOut:
@@ -144,7 +133,7 @@ async def upload_file(
     chunks: list[Chunk] = []
     if photo or is_document(content_type):
         analysis = await analyse("photo" if photo else "document", content, content_type)
-        evidence.facts = facts_from(case, analysis["facts"])
+        evidence.facts = facts_from(case.id, analysis["facts"])
         chunks = analysis["chunks"]
     # boto3 is blocking, so it runs in a worker thread (FastAPI's documented way for sync libraries).
     await run_in_threadpool(
@@ -164,7 +153,7 @@ async def add_link(
     url = str(link.url)
     evidence = Evidence(case_id=case.id, kind=EvidenceKind.link, label=url, url=url)
     analysis = await analyse("page", url=url)
-    evidence.facts = facts_from(case, analysis["facts"])
+    evidence.facts = facts_from(case.id, analysis["facts"])
     return await add(db, evidence, analysis["chunks"])
 
 
@@ -184,10 +173,14 @@ async def download_file(
     case: Annotated[Case, Depends(current_case)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> RedirectResponse:
-    """Redirect to a presigned URL that works for a few minutes; the bucket itself is private."""
+    """Redirect to a presigned URL that works for a few minutes; the bucket itself is private.
+
+    Files and findings have one (a finding's is the text the detective's tool returned)."""
     evidence = await db.scalar(
         select(Evidence).where(
-            Evidence.id == evidence_id, Evidence.case_id == case.id, Evidence.kind == EvidenceKind.file
+            Evidence.id == evidence_id,
+            Evidence.case_id == case.id,
+            Evidence.kind.in_([EvidenceKind.file, EvidenceKind.finding]),
         )
     )
     if evidence is None:
