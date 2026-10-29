@@ -1,14 +1,18 @@
 """Smoke checks against a deployed environment. Run with `just smoke <api-url> <web-url>`.
 
 Logs in as a dedicated smoke-test client (SMOKE_EMAIL / SMOKE_PASSWORD from your local .env).
-The agent and browser checks make one real call each to the cheap model (fractions of a cent).
+The agent, tracing and browser checks make one real call each to the cheap model (fractions of a cent).
+Tracing is read via the LangSmith SDK's LANGSMITH_* variables (key from .env, the rest from `just smoke`).
 """
 
 import json
 import os
+import time
 import uuid
+from datetime import UTC, datetime
 
 import httpx
+from langsmith import Client
 from playwright.sync_api import Page, expect
 
 API_URL = os.environ["SMOKE_API_URL"]
@@ -74,6 +78,42 @@ def test_deployed_case_resets_then_remembers_the_conversation() -> None:
     saved = httpx.get(f"{API_URL}/cases/current/messages", headers={"cookie": cookie}, timeout=15).json()
     assert [m["role"] for m in saved] == ["user", "assistant"]
     assert saved[0]["content"] == "Smoke test: say hello in five words."
+
+
+def test_deployed_detective_run_is_traced_in_langsmith() -> None:
+    cookie = log_in()
+    case_id = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15).json()["id"]
+    marker = f"Smoke trace {uuid.uuid4()}: reply with one word."
+    started = datetime.now(UTC)
+    with httpx.stream(
+        "POST",
+        f"{API_URL}/agent",
+        json=run_input(marker),
+        headers={"accept": "text/event-stream", "cookie": cookie},
+        timeout=60,
+    ) as response:
+        assert response.status_code == 200
+        response.read()
+
+    # Traces reach LangSmith asynchronously (api background thread, then LangSmith's ingestion): poll for it.
+    langsmith = Client()
+    project = os.environ["LANGSMITH_PROJECT"]
+    deadline = time.monotonic() + 120
+    root = None
+    while root is None and time.monotonic() < deadline:
+        roots = langsmith.list_runs(project_name=project, is_root=True, start_time=started)
+        root = next((run for run in roots if marker in json.dumps(run.inputs) and run.end_time), None)
+        if root is None:
+            time.sleep(3)
+    assert root is not None, f"no finished trace for {marker!r} in LangSmith project {project}"
+    assert root.extra["metadata"]["thread_id"] == case_id
+
+    runs = list(langsmith.list_runs(project_name=project, trace_id=root.trace_id))
+    [node] = [run for run in runs if run.name == "detective" and run.run_type == "chain"]
+    [llm] = [run for run in runs if run.run_type == "llm"]
+    assert llm.parent_run_id == node.id
+    assert llm.extra["metadata"]["ls_model_name"] == "gpt-5.4-nano"
+    assert llm.total_tokens and llm.total_tokens > 0
 
 
 def test_deployed_evidence_file_round_trips_through_the_bucket() -> None:

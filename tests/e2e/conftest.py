@@ -1,5 +1,5 @@
-"""E2E fixtures: a throwaway Postgres (same image as compose/Railway), a throwaway S3 (RustFS), a fake
-OpenAI server, and the real API server process wired to all three."""
+"""E2E fixtures: a throwaway Postgres (same image as compose/Railway), a throwaway S3 (RustFS), fake OpenAI
+and LangSmith servers, and the real API server process wired to them."""
 
 import json
 import os
@@ -176,15 +176,32 @@ def fake_openai() -> Iterator[str]:
     _stop(proc)
 
 
-def start_api(
-    database_url: str, openai_base_url: str, s3_endpoint: str
-) -> tuple[subprocess.Popen[bytes], str]:
-    """Boot the API exactly as in production (`fastapi run`), pointed at the given dependencies."""
+@pytest.fixture(scope="session")
+def fake_langsmith() -> Iterator[str]:
     port = _free_port()
+    script = Path(__file__).with_name("fake_langsmith.py")
+    proc = subprocess.Popen([sys.executable, str(script), str(port)])
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_until_up(proc, f"{base_url}/received", "fake LangSmith")
+    yield base_url
+    _stop(proc)
+
+
+def start_api(
+    database_url: str, openai_base_url: str, s3_endpoint: str, langsmith: dict[str, str] | None = None
+) -> tuple[subprocess.Popen[bytes], str]:
+    """Boot the API exactly as in production (`fastapi run`), pointed at the given dependencies.
+
+    LangSmith settings from your shell or `.env` are never passed on (tests must not trace with your real
+    key); `langsmith` gives the SDK's own `LANGSMITH_*` variables for a test that traces to the fake.
+    """
+    port = _free_port()
+    inherited = {name: value for name, value in os.environ.items() if not name.startswith("LANGSMITH_")}
     proc = subprocess.Popen(
         ["fastapi", "run", "src/detective/main.py", "--host", "127.0.0.1", "--port", str(port)],
         env={
-            **os.environ,
+            **inherited,
+            **(langsmith or {}),
             "DATABASE_URL": database_url,
             # OpenAI SDK's own settings: route model calls to the fake server.
             "OPENAI_BASE_URL": f"{openai_base_url}/v1",

@@ -69,6 +69,12 @@ export default defineRailway(() => {
       AWS_SECRET_ACCESS_KEY: ref(evidence, "SECRET_ACCESS_KEY"),
       AWS_DEFAULT_REGION: ref(evidence, "REGION"),
       S3_ADDRESSING_STYLE: "virtual", // Railway Buckets use virtual-hosted–style URLs
+      // LangSmith tracing, in the SDK's own variable names: LangChain and LangGraph trace every run themselves.
+      LANGSMITH_TRACING: "true",
+      LANGSMITH_ENDPOINT: "https://eu.api.smith.langchain.com",
+      LANGSMITH_PROJECT: "true-ai-detective",
+      // Secret set with `railway variable set LANGSMITH_API_KEY --stdin --service api`; value stays on Railway.
+      LANGSMITH_API_KEY: preserve(),
     },
   });
 
