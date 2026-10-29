@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # `provider:model` for LangChain's init_embeddings (case memory, S11). Its vectors are 1536 wide: the
     # case_memory table's size, so changing the model means a migration and a `detective reindex`.
     embedding_model: str = "openai:text-embedding-3-small"
+    # The detective's next-step decision (S12): a decision model behind Vercel AI Gateway, called with the
+    # OpenAI SDK's Decisions API (`decisions.create`); LangChain has no decision-model integration.
+    decision_model: str = "typesafe-ai/jev"
+    decisions_base_url: str = "https://ai-gateway.vercel.sh/v1"
+    ai_gateway_api_key: str = ""  # secret, from the environment (.env locally, Railway in prod)
     # Session cookie is HTTPS-only. Browsers treat localhost as secure, so this stays on locally too.
     session_cookie_secure: bool = True
     session_days: int = 14

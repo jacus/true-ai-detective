@@ -230,6 +230,9 @@ def app_env(
         # OpenAI SDK's own settings: route model calls to the fake server.
         "OPENAI_BASE_URL": f"{openai_base_url}/v1",
         "OPENAI_API_KEY": "sk-fake",
+        # The decision model (JEV via AI Gateway in prod) goes to the fake's OpenAI Decisions API too.
+        "DECISIONS_BASE_URL": f"{openai_base_url}/v1",
+        "AI_GATEWAY_API_KEY": "gw-fake",
         **S3_ENV,
         "AWS_ENDPOINT_URL": s3_endpoint,
         # A dead proxy for all but this machine: tests never reach the internet (e.g. link fetching).

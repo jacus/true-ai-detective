@@ -253,6 +253,32 @@ def test_deployed_pin_is_a_fact_and_its_indexing_is_traced() -> None:
     assert root.outputs and root.outputs["documents"][0]["text"] == fact["statement"]
 
 
+def test_deployed_detective_decides_its_next_step_with_jev() -> None:
+    cookie = log_in()
+    started = datetime.now(UTC)
+    question = f"Smoke loop {uuid.uuid4().hex[:6]}: what should we do next about the missing umbrella?"
+
+    with httpx.stream(
+        "POST",
+        f"{API_URL}/agent",
+        json=run_input(question),
+        headers={"accept": "text/event-stream", "cookie": cookie},
+        timeout=120,
+    ) as response:
+        assert response.status_code == 200
+        events = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
+
+    assert events[-1]["type"] == "RUN_FINISHED"
+    state = [e["snapshot"] for e in events if e["type"] == "STATE_SNAPSHOT"][-1]
+    actions = {"research", "ask", "consult", "conclude"}
+    assert state["steps"] and set(state["steps"]) <= actions and state["steps"][-1] != "research"
+    assert abs(sum(state["decision"]["probabilities"].values()) - 1) < 0.05, state["decision"]
+    _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
+    jev = [run for run in runs if run.name == "decide-next-step"]
+    assert jev and all(run.metadata["ls_model_name"] == "typesafe-ai/jev" for run in jev)
+    assert state["steps"][-1] in {run.name for run in runs}, "the reply node of the final step ran"
+
+
 def test_deployed_link_is_fetched_and_read() -> None:
     cookie = log_in()
     started = datetime.now(UTC)

@@ -75,6 +75,9 @@ export default defineRailway(() => {
       LANGSMITH_PROJECT: "true-ai-detective",
       // Secret set with `railway variable set LANGSMITH_API_KEY --stdin --service api`; value stays on Railway.
       LANGSMITH_API_KEY: preserve(),
+      // The detective's next-step decisions (JEV, via Vercel AI Gateway's Decisions API).
+      // Secret set with `railway variable set AI_GATEWAY_API_KEY --stdin --service api`; value stays on Railway.
+      AI_GATEWAY_API_KEY: preserve(),
     },
   });
 

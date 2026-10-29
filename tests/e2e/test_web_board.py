@@ -1,5 +1,6 @@
 """The case board in the browser: CopilotKit shared state, streamed from the detective graph over AG-UI."""
 
+import httpx
 from conftest import sign_up, unique_email
 from playwright.sync_api import Page, expect
 from test_web_chat import PASSWORD, log_in
@@ -48,3 +49,24 @@ def test_new_evidence_updates_the_board_without_a_reload(
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Reset case").click()
     expect(timeline).to_have_text("Nothing dated yet.")
+
+
+def test_the_board_shows_the_detectives_last_steps(
+    page: Page, web: str, api: str, database_url: str, fake_openai: str
+) -> None:
+    email = unique_email()
+    sign_up(api, database_url, email, PASSWORD)
+    log_in(page, web, email)
+    httpx.post(f"{fake_openai}/decisions", json=[{"choice": "research"}, {"choice": "conclude"}])
+    page.wait_for_load_state("networkidle")  # the chat must discover the agent before we type
+
+    message_box = page.get_by_placeholder("Describe what happened…")
+    message_box.fill("Who took my umbrella?")
+    message_box.press("Enter")
+    expect(page.get_by_test_id("copilot-assistant-message")).to_have_count(1)
+
+    # The loop's trail streams in with the state: researched once, then concluded (the fake is 90% sure).
+    last_step = page.get_by_role("region", name="Case board").get_by_role(
+        "status", name="Detective's last step"
+    )
+    expect(last_step).to_have_text("Detective's last step: research → conclude (90%)")

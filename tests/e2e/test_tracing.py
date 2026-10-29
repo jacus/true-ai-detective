@@ -58,8 +58,12 @@ def test_a_detective_run_is_traced_with_its_node_and_model_call(
     # LangGraph puts the thread id (our case id) in the trace metadata: LangSmith groups a case's runs by it.
     assert root["extra"]["metadata"]["thread_id"] == case_id
 
-    [node] = [run for run in runs if run["name"] == "detective" and run["run_type"] == "chain"]
-    # The reply's model call sits under the detective node; the board's under update_board (S10).
+    # The loop (S12): decide asked the decision model (traced with @traceable), which chose "ask".
+    [decide] = [run for run in runs if run["name"] == "decide"]
+    [jev] = [run for run in runs if run["name"] == "decide-next-step"]
+    assert by_id[jev["parent_run_id"]] is decide and jev["outputs"]["action"] == "ask"
+    [node] = [run for run in runs if run["name"] == "ask" and run["run_type"] == "chain"]
+    # The reply's model call sits under its reply node; the board's under update_board (S10).
     [llm] = [run for run in runs if run["run_type"] == "llm" and by_id[run["parent_run_id"]] is node]
     assert any(run["name"] == "update_board" and run["parent_run_id"] == root["id"] for run in runs)
     assert llm["extra"]["metadata"]["ls_model_name"] == "gpt-5.4-nano"
@@ -112,7 +116,14 @@ def test_indexing_evidence_is_traced_with_what_was_embedded(
             headers={"cookie": cookie},
         ).json()
         deadline = time.monotonic() + 15
-        while not (runs := [r for r in traced(fake_langsmith, project) if r["name"] == "index-evidence"]):
+        # A run arrives in two parts (start, then end with outputs): wait for the ended one.
+        while not (
+            runs := [
+                r
+                for r in traced(fake_langsmith, project)
+                if r["name"] == "index-evidence" and r.get("end_time")
+            ]
+        ):
             assert time.monotonic() < deadline, "no index-evidence run"
             time.sleep(0.2)
     finally:
