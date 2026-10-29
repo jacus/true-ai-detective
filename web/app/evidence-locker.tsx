@@ -20,8 +20,10 @@ const PHOTO_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 /** Files, photos, links and map pins on the case. Each form posts to the api and appends what it returns. */
 export function EvidenceLocker({
   initialEvidence,
+  onAdded,
 }: {
   initialEvidence: Evidence[];
+  onAdded: () => Promise<void>;
 }) {
   const [evidence, setEvidence] = useState(initialEvidence);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,8 @@ export function EvidenceLocker({
     setError(null);
     const added: Evidence = await response.json();
     setEvidence((current) => [...current, added]);
+    // New facts change the board; the form needn't wait for it (the board streams in).
+    if (added.facts.length > 0) void onAdded();
   }
 
   // React form actions: the form resets itself after each one.

@@ -1,7 +1,7 @@
 import re
 
 import httpx
-from conftest import invite, sign_up, unique_email
+from conftest import chat_request, invite, sign_up, unique_email
 from fake_openai import reply_for
 from playwright.sync_api import Browser, Page, expect
 
@@ -141,7 +141,7 @@ def test_two_clients_chatting_never_see_each_others_case(
     chat(bob, "Hello detective")
 
     expect(bob.get_by_text("7-3-1")).to_have_count(0)
-    last_request = httpx.get(f"{fake_openai}/received").json()[-1]["messages"]
+    last_request = chat_request(fake_openai)["messages"]
     assert "7-3-1" not in str(last_request), "Bob's model call must not contain Alice's case"
 
 

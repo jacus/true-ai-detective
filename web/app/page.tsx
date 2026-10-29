@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import {
+  getCaseBoard,
   getCaseEvidence,
   getCaseMessages,
   getCurrentCase,
@@ -21,9 +22,10 @@ export default function Home() {
 async function Chat() {
   const user = await requireUser();
   const currentCase = await getCurrentCase();
-  const [messages, evidence] = await Promise.all([
+  const [messages, evidence, board] = await Promise.all([
     getCaseMessages(),
     getCaseEvidence(),
+    getCaseBoard(),
   ]);
   return (
     <DetectiveChat
@@ -31,6 +33,7 @@ async function Chat() {
       caseId={currentCase.id}
       initialMessages={messages}
       initialEvidence={evidence}
+      initialBoard={board}
     />
   );
 }

@@ -14,8 +14,9 @@ from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 received: list[dict] = []
-# Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, and in a part
-# of a document (a fact quoting its first sentence). Tests can queue other answers per schema name.
+# Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, in a part of a
+# document (a fact quoting its first sentence), and the case board (a timeline entry per numbered fact, a lead
+# for the newest). Tests can queue other answers per schema name.
 PHOTO_SIGHTINGS = {
     "sightings": [
         {"kind": "text", "statement": 'A shop sign reads "PIEKARNIA NOWAK"'},
@@ -38,6 +39,20 @@ def document_facts(payload: dict) -> dict:
     }
 
 
+def case_board(payload: dict) -> dict:
+    """A board built from the <facts> the app sent (lines "F1: ...")."""
+    facts_block = payload["messages"][1]["content"].split("<facts>", 1)[1].split("</facts>", 1)[0]
+    facts = [line.split(": ", 1)[1] for line in facts_block.strip().splitlines() if line.startswith("F")]
+    return {
+        "leads": [{"what": f"Follow up on F{len(facts)}", "why": "newest evidence"}] if facts else [],
+        "hypotheses": [],
+        "timeline": [
+            {"when": "as reported", "what": fact[:80], "fact": n} for n, fact in enumerate(facts, 1)
+        ],
+        "contradictions": [],
+    }
+
+
 def reply_for(user_text: str) -> str:
     return f"Detective on the case. You said: {user_text}"
 
@@ -48,7 +63,8 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
     received.append(payload)
     if not payload.get("stream"):
         schema = payload["response_format"]["json_schema"]["name"]
-        default = PHOTO_SIGHTINGS if schema == "PhotoFacts" else document_facts(payload)
+        answers = {"PhotoFacts": lambda: PHOTO_SIGHTINGS, "DocumentFacts": lambda: document_facts(payload)}
+        default = answers.get(schema, lambda: case_board(payload))()
         waiting = queued.get(schema, [])
         content = waiting.pop(0) if waiting else json.dumps(default)
         return {

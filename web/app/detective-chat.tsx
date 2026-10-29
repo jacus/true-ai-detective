@@ -3,13 +3,17 @@
 import type { Message } from "@ag-ui/client";
 import {
   CopilotChat,
+  CopilotChatConfigurationProvider,
   CopilotKitProvider,
+  UseAgentUpdate,
   useAgent,
+  useCopilotKit,
 } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import type { Evidence, User } from "@/lib/api";
+import { useEffect, useRef } from "react";
+import type { Board, Evidence, User } from "@/lib/api";
+import { CaseBoard } from "./case-board";
 import styles from "./evidence.module.css";
 import { EvidenceLocker } from "./evidence-locker";
 
@@ -18,6 +22,7 @@ type Props = {
   caseId: string;
   initialMessages: Message[];
   initialEvidence: Evidence[];
+  initialBoard: Board;
 };
 
 export function DetectiveChat({
@@ -25,6 +30,7 @@ export function DetectiveChat({
   caseId,
   initialMessages,
   initialEvidence,
+  initialBoard,
 }: Props) {
   const router = useRouter();
 
@@ -65,19 +71,75 @@ export function DetectiveChat({
           Log out
         </button>
       </header>
-      <div className={styles.casePage}>
+      {/* Keyed by case: a reset mounts a completely fresh board, chat and locker. */}
+      <CopilotKitProvider
+        key={caseId}
+        runtimeUrl="/api/copilotkit"
+        useSingleEndpoint={false}
+      >
+        {/* One chat configuration for the whole case view: every useAgent below (board, chat, refresh)
+            then shares the agent on the case's thread, so a refresh run's state reaches the board. */}
+        <CopilotChatConfigurationProvider agentId="detective" threadId={caseId}>
+          <CaseView
+            caseId={caseId}
+            initialMessages={initialMessages}
+            initialEvidence={initialEvidence}
+            initialBoard={initialBoard}
+          />
+        </CopilotChatConfigurationProvider>
+      </CopilotKitProvider>
+    </div>
+  );
+}
+
+function CaseView({
+  caseId,
+  initialMessages,
+  initialEvidence,
+  initialBoard,
+}: Omit<Props, "user">) {
+  // CopilotKit shared state: re-render on every STATE_SNAPSHOT the detective graph streams. One hook owns
+  // the agent, so the board we show and the refresh we start are always the same agent object.
+  const { agent } = useAgent({
+    agentId: "detective",
+    updates: [UseAgentUpdate.OnStateChanged],
+  });
+  const { copilotkit } = useCopilotKit();
+  // Until the first run on this page, the board is the one saved with the case.
+  const board: Board = agent.state?.board ?? initialBoard;
+
+  // CopilotKit can swap the agent object (e.g. once the runtime connects) while an upload is in flight;
+  // the refresh then has to use the agent of *now*, not the one captured when the upload started.
+  const latestAgent = useRef(agent);
+  useEffect(() => {
+    latestAgent.current = agent;
+  }, [agent]);
+
+  // New evidence: a run without a new message, so the graph only rebuilds the board (and streams it here).
+  async function refreshBoard() {
+    const current = latestAgent.current;
+    if (!current.isRunning) await copilotkit.runAgent({ agent: current });
+  }
+
+  return (
+    <div className={styles.casePage}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <CaseBoard board={board} />
         <div style={{ flex: 1, minHeight: 0 }}>
-          {/* Keyed by case: a reset mounts a completely fresh chat and locker. */}
-          <CopilotKitProvider
-            key={caseId}
-            runtimeUrl="/api/copilotkit"
-            useSingleEndpoint={false}
-          >
-            <CaseChat caseId={caseId} initialMessages={initialMessages} />
-          </CopilotKitProvider>
+          <CaseChat caseId={caseId} initialMessages={initialMessages} />
         </div>
-        <EvidenceLocker key={caseId} initialEvidence={initialEvidence} />
       </div>
+      <EvidenceLocker
+        initialEvidence={initialEvidence}
+        onAdded={refreshBoard}
+      />
     </div>
   );
 }

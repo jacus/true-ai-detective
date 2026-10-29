@@ -84,6 +84,26 @@ export type Fact = {
   location: string | null;
 };
 
+/** The case board (api `Board`): it lives in the detective graph's state; runs stream its updates. */
+export type Board = {
+  leads: { what: string; why: string }[];
+  hypotheses: {
+    claim: string;
+    confidence: "low" | "medium" | "high";
+    sources: string[];
+  }[];
+  timeline: { when: string; what: string; source: string }[];
+  contradictions: { what: string; sources: string[] }[];
+};
+
+export async function getCaseBoard(): Promise<Board> {
+  const response = await fromApi("/cases/current/board");
+  if (!response || response.status === 401) redirect("/login");
+  if (!response.ok)
+    throw new Error(`api /cases/current/board failed: ${response.status}`);
+  return response.json();
+}
+
 /** Files, links and map pins attached to the case (file bytes are fetched separately, via a presigned URL). */
 export async function getCaseEvidence(): Promise<Evidence[]> {
   const response = await fromApi("/cases/current/evidence");
