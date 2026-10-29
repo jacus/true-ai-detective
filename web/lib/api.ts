@@ -76,7 +76,13 @@ export type Evidence = {
   facts: Fact[];
 };
 
-export type Fact = { kind: string; statement: string };
+/** Facts read in text carry their citation: the exact quote and where it is (e.g. "page 3"). */
+export type Fact = {
+  kind: string;
+  statement: string;
+  quote: string | null;
+  location: string | null;
+};
 
 /** Files, links and map pins attached to the case (file bytes are fetched separately, via a presigned URL). */
 export async function getCaseEvidence(): Promise<Evidence[]> {

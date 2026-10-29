@@ -1,7 +1,7 @@
 """Smoke checks against a deployed environment. Run with `just smoke <api-url> <web-url>`.
 
 Logs in as a dedicated smoke-test client (SMOKE_EMAIL / SMOKE_PASSWORD from your local .env).
-The agent, tracing, photo and browser checks make one real call each to the cheap model (fractions of a cent).
+The agent, tracing, photo, document and browser checks make real calls to the cheap model (cents at most).
 Tracing is read via the LangSmith SDK's LANGSMITH_* variables (key from .env, the rest from `just smoke`).
 """
 
@@ -13,6 +13,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 import httpx
+from known_document import WITNESS_PAGES, witness_statement
 from known_photo import CAMERA, LOCATION, SIGN, TAKEN_AT, known_photo
 from langsmith import Client
 from langsmith.schemas import Run
@@ -137,9 +138,53 @@ def test_deployed_detective_reads_a_known_photo() -> None:
     facts = [fact["statement"] for fact in created.json()["facts"]]
     assert facts[:3] == [TAKEN_AT, CAMERA, LOCATION]  # EXIF, read by code
     assert any(SIGN in fact.upper() for fact in facts[3:]), f"nano should read the sign: {facts}"
-    # The analysis is traced as its own graph, node by node.
-    _, runs = find_trace(started, lambda run: run.name == "photo-analysis")
-    assert {"read_exif", "look_at_photo"} <= {run.name for run in runs}
+    # The analysis is traced node by node: the photo graph runs inside the evidence-analysis graph.
+    _, runs = find_trace(
+        started, lambda run: run.name == "evidence-analysis" and run.inputs["kind"] == "photo"
+    )
+    assert {"photo", "photo-analysis", "read_exif", "look_at_photo"} <= {run.name for run in runs}
+
+
+def test_deployed_detective_reads_a_known_document_with_citations() -> None:
+    cookie = log_in()
+    started = datetime.now(UTC)
+
+    created = httpx.post(
+        f"{API_URL}/cases/current/evidence/files",
+        files={"file": ("witness.pdf", witness_statement(), "application/pdf")},
+        headers={"cookie": cookie},
+        timeout=120,
+    )
+
+    assert created.status_code == 201, created.text
+    facts = created.json()["facts"]
+    pages = {f"page {n}": " ".join(text.split()).casefold() for n, text in enumerate(WITNESS_PAGES, 1)}
+    assert facts, "nano should find facts in the witness statement"
+    for fact in facts:  # every stored quote is really on the page it cites
+        assert " ".join(fact["quote"].split()).casefold() in pages[fact["location"]], fact
+    assert any("Kowalska" in fact["statement"] for fact in facts), facts
+    _, runs = find_trace(
+        started, lambda run: run.name == "evidence-analysis" and run.inputs["kind"] == "document"
+    )
+    assert sum(run.name == "chunk-facts" for run in runs) == 2, "one chunk-facts run per page"
+
+
+def test_deployed_link_is_fetched_and_read() -> None:
+    cookie = log_in()
+    started = datetime.now(UTC)
+
+    created = httpx.post(
+        f"{API_URL}/cases/current/evidence/links",
+        json={"url": "https://example.com/"},
+        headers={"cookie": cookie},
+        timeout=60,
+    )
+
+    assert created.status_code == 201, created.text
+    _, runs = find_trace(
+        started, lambda run: run.name == "evidence-analysis" and run.inputs["kind"] == "page"
+    )
+    assert {"fetch_page", "chunk-facts"} <= {run.name for run in runs}, "the page was fetched and read"
 
 
 def test_deployed_evidence_file_round_trips_through_the_bucket() -> None:

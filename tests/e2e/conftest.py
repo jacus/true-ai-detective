@@ -187,6 +187,22 @@ def fake_langsmith() -> Iterator[str]:
     _stop(proc)
 
 
+@pytest.fixture(scope="session")
+def web_pages() -> Iterator[str]:
+    """A local web server for tests/e2e/pages/, standing in for pages a client links to."""
+    port = _free_port()
+    pages = Path(__file__).with_name("pages")
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1", "--directory", str(pages)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_until_up(proc, base_url, "web pages")
+    yield base_url
+    _stop(proc)
+
+
 def start_api(
     database_url: str, openai_base_url: str, s3_endpoint: str, langsmith: dict[str, str] | None = None
 ) -> tuple[subprocess.Popen[bytes], str]:
@@ -208,6 +224,11 @@ def start_api(
             "OPENAI_API_KEY": "sk-fake",
             **S3_ENV,
             "AWS_ENDPOINT_URL": s3_endpoint,
+            # A dead proxy for all but this machine: tests never reach the internet (e.g. link fetching).
+            # httpx, boto3 and the OpenAI/LangSmith SDKs all honour these standard variables.
+            "HTTP_PROXY": "http://127.0.0.1:9",
+            "HTTPS_PROXY": "http://127.0.0.1:9",
+            "NO_PROXY": "127.0.0.1,localhost",
         },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

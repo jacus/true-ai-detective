@@ -5,6 +5,7 @@ Run: `python tests/e2e/fake_openai.py <port>`.
 """
 
 import json
+import re
 import sys
 
 import uvicorn
@@ -13,14 +14,28 @@ from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 received: list[dict] = []
-# What the "model sees" in a photo (structured output, non-streamed). Tests can queue other answers.
+# Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, and in a part
+# of a document (a fact quoting its first sentence). Tests can queue other answers per schema name.
 PHOTO_SIGHTINGS = {
     "sightings": [
         {"kind": "text", "statement": 'A shop sign reads "PIEKARNIA NOWAK"'},
         {"kind": "object", "statement": "A red bicycle leans against the wall"},
     ]
 }
-photo_answers: list[str] = []
+queued: dict[str, list[str]] = {}
+
+
+def first_sentence(text: str) -> str:
+    return re.split(r"(?<=[.!?])\s", text.strip(), maxsplit=1)[0][:300]
+
+
+def document_facts(payload: dict) -> dict:
+    """A fact quoting the first sentence of the <document> part the app sent."""
+    part = payload["messages"][1]["content"].split(">", 1)[1].rsplit("</document>", 1)[0]
+    sentence = first_sentence(part)
+    return {
+        "facts": [{"kind": "event", "statement": f"The document says: {sentence[:150]}", "quote": sentence}]
+    }
 
 
 def reply_for(user_text: str) -> str:
@@ -32,7 +47,10 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
     payload = await request.json()
     received.append(payload)
     if not payload.get("stream"):
-        content = photo_answers.pop(0) if photo_answers else json.dumps(PHOTO_SIGHTINGS)
+        schema = payload["response_format"]["json_schema"]["name"]
+        default = PHOTO_SIGHTINGS if schema == "PhotoFacts" else document_facts(payload)
+        waiting = queued.get(schema, [])
+        content = waiting.pop(0) if waiting else json.dumps(default)
         return {
             "id": "chatcmpl-fake",
             "object": "chat.completion",
@@ -66,10 +84,10 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-@app.post("/photo-answers")
-async def queue_photo_answers(request: Request) -> None:
-    """The next structured answers (raw JSON), used in order before falling back to PHOTO_SIGHTINGS."""
-    photo_answers.extend(await request.json())
+@app.post("/answers/{schema}")
+async def queue_answers(schema: str, request: Request) -> None:
+    """The next structured answers (raw JSON) for that schema, used in order before the default answer."""
+    queued.setdefault(schema, []).extend(await request.json())
 
 
 @app.get("/received")

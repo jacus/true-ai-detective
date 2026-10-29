@@ -19,13 +19,20 @@ SIGN = 'A shop sign reads "PIEKARNIA NOWAK"'
 BIKE = "A red bicycle leans against the wall"
 
 
+def structured_requests(fake_openai: str, schema: str) -> list[dict]:
+    """Structured-output requests (not streamed) the app sent asking for that schema."""
+    received = httpx.get(f"{fake_openai}/received").json()
+    return [
+        r for r in received if not r.get("stream") and r["response_format"]["json_schema"]["name"] == schema
+    ]
+
+
 def vision_requests(fake_openai: str) -> list[dict]:
-    """Requests the app sent with a photo in them (structured output, not streamed)."""
-    return [r for r in httpx.get(f"{fake_openai}/received").json() if not r.get("stream")]
+    return structured_requests(fake_openai, "PhotoFacts")
 
 
 def queue_photo_answers(fake_openai: str, *answers: dict) -> None:
-    httpx.post(f"{fake_openai}/photo-answers", json=[json.dumps(answer) for answer in answers])
+    httpx.post(f"{fake_openai}/answers/PhotoFacts", json=[json.dumps(answer) for answer in answers])
 
 
 def facts_of(evidence: dict) -> list[tuple[str, str]]:
@@ -92,7 +99,7 @@ def test_a_photo_rejected_twice_keeps_only_its_exif_facts(
     assert len(vision_requests(fake_openai)[before:]) == 2, "one retry, then give up"
 
 
-def test_other_files_are_not_analysed_and_broken_photos_are_refused(
+def test_only_photos_are_looked_at_and_broken_photos_are_refused(
     api: str, database_url: str, fake_openai: str
 ) -> None:
     cookie = sign_up(api, database_url, unique_email(), PASSWORD)
@@ -102,7 +109,7 @@ def test_other_files_are_not_analysed_and_broken_photos_are_refused(
     broken = upload(api, cookie, "scene.png", b"not really a png", "image/png")
 
     assert notes.status_code == 201
-    assert notes.json()["facts"] == []
+    assert [f["kind"] for f in notes.json()["facts"]] == ["event"]  # read as a document (S9), not as a photo
     assert broken.status_code == 422
     assert [e["label"] for e in listed(api, cookie)] == ["notes.txt"]
     assert vision_requests(fake_openai)[before:] == []

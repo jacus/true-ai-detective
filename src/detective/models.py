@@ -122,11 +122,22 @@ class FactKind(enum.StrEnum):
     # Seen in the photo by the vision model
     text = "text"
     object = "object"
-    place = "place"
+    place = "place"  # also read in documents
+    # Read in documents and web pages, each with a quote
+    person = "person"
+    organisation = "organisation"
+    time = "time"
+    event = "event"
+    contact = "contact"
+    # Said by the app itself, e.g. that only part of a long document was read
+    note = "note"
 
 
 class Fact(Base):
     """One thing learned from a piece of evidence, always linked to it (its source).
+
+    Facts read in documents and pages also carry their citation: the exact `quote` from the source text
+    (checked to be really there) and its `location` in it, e.g. "page 3" or "part 2 of 5".
 
     Row-level security: visible only if its case is, like `evidence`. Deleted with its evidence or case.
     """
@@ -140,4 +151,6 @@ class Fact(Base):
         Enum(FactKind, native_enum=False, create_constraint=True, length=16, validate_strings=True)
     )
     statement: Mapped[str]
+    quote: Mapped[str | None]
+    location: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

@@ -2,7 +2,8 @@
 
 Upload goes through the api (it checks size and stores under the case); download is a redirect to a
 short-lived presigned S3 URL, minted only after row-level security found the evidence in the caller's case.
-A photo is analysed on upload (`photo_analysis` graph) and stored with the facts found in it.
+Photos, documents (PDF, text) and links are analysed when added (`evidence_analysis` graph) and stored with
+the facts found in them.
 """
 
 import io
@@ -21,8 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from detective.cases import current_case
 from detective.db import get_db
+from detective.evidence_analysis import analyse
 from detective.models import Case, Evidence, EvidenceKind, Fact, FactKind
-from detective.photo_analysis import analyse
+from detective.photo_analysis import Found
 from detective.settings import settings
 from detective.storage import object_key, s3
 
@@ -30,6 +32,12 @@ router = APIRouter(prefix="/cases/current/evidence", tags=["evidence"])
 
 # Shown in the browser; every other type (HTML, SVG, PDF…) is only ever downloaded.
 INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def is_document(content_type: str) -> bool:
+    return content_type == "application/pdf" or content_type.startswith("text/")
+
+
 DOWNLOAD_URL_SECONDS = 300
 
 
@@ -38,6 +46,8 @@ class FactOut(BaseModel):
 
     kind: FactKind
     statement: str
+    quote: str | None
+    location: str | None
 
 
 class EvidenceOut(BaseModel):
@@ -63,6 +73,19 @@ class PinIn(BaseModel):
     label: str = Field(min_length=1, max_length=200)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+
+
+def facts_from(case: Case, found: list[Found]) -> list[Fact]:
+    return [
+        Fact(
+            case_id=case.id,
+            kind=f["kind"],
+            statement=f["statement"],
+            quote=f.get("quote"),
+            location=f.get("location"),
+        )
+        for f in found
+    ]
 
 
 async def add(db: AsyncSession, evidence: Evidence) -> EvidenceOut:
@@ -108,9 +131,11 @@ async def upload_file(
         content_type=content_type,
         size_bytes=file.size,
     )
-    if photo:  # before anything is stored: if the model call fails, the upload fails as a whole
-        found = await analyse(content, content_type)
-        evidence.facts = [Fact(case_id=case.id, kind=f["kind"], statement=f["statement"]) for f in found]
+    # Before anything is stored: if a model call fails, the upload fails as a whole.
+    if photo:
+        evidence.facts = facts_from(case, await analyse("photo", content, content_type))
+    elif is_document(content_type):
+        evidence.facts = facts_from(case, await analyse("document", content, content_type))
     # boto3 is blocking, so it runs in a worker thread (FastAPI's documented way for sync libraries).
     await run_in_threadpool(
         s3.upload_fileobj,
@@ -127,7 +152,9 @@ async def add_link(
     link: LinkIn, case: Annotated[Case, Depends(current_case)], db: Annotated[AsyncSession, Depends(get_db)]
 ) -> EvidenceOut:
     url = str(link.url)
-    return await add(db, Evidence(case_id=case.id, kind=EvidenceKind.link, label=url, url=url))
+    evidence = Evidence(case_id=case.id, kind=EvidenceKind.link, label=url, url=url)
+    evidence.facts = facts_from(case, await analyse("page", url=url))
+    return await add(db, evidence)
 
 
 @router.post("/pins", status_code=status.HTTP_201_CREATED)

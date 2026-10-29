@@ -69,6 +69,7 @@ export function EvidenceLocker({
         {evidence.map((item) => (
           <li key={item.id} data-testid="evidence-item">
             <EvidenceItem item={item} />
+            {item.facts.length > 0 && <Facts item={item} />}
           </li>
         ))}
         {evidence.length === 0 && (
@@ -149,21 +150,11 @@ function EvidenceItem({ item }: { item: Evidence }) {
     case "file":
       if (PHOTO_TYPES.includes(item.content_type ?? "")) {
         return (
-          <>
-            <a href={file} target="_blank" rel="noopener noreferrer">
-              {/* biome-ignore lint/performance/noImgElement: presigned bucket URLs, not optimizable assets */}
-              <img src={file} alt={item.label} className={styles.photo} />
-              <span>{item.label}</span>
-            </a>
-            <ul
-              className={styles.facts}
-              aria-label={`Facts from ${item.label}`}
-            >
-              {item.facts.map((fact) => (
-                <li key={`${fact.kind}:${fact.statement}`}>{fact.statement}</li>
-              ))}
-            </ul>
-          </>
+          <a href={file} target="_blank" rel="noopener noreferrer">
+            {/* biome-ignore lint/performance/noImgElement: presigned bucket URLs, not optimizable assets */}
+            <img src={file} alt={item.label} className={styles.photo} />
+            <span>{item.label}</span>
+          </a>
         );
       }
       return (
@@ -185,6 +176,25 @@ function EvidenceItem({ item }: { item: Evidence }) {
         </span>
       );
   }
+}
+
+function Facts({ item }: { item: Evidence }) {
+  return (
+    <ul className={styles.facts} aria-label={`Facts from ${item.label}`}>
+      {item.facts.map((fact, n) => (
+        <li key={`${n}:${fact.statement}`}>
+          {fact.statement}
+          {fact.quote && (
+            <span className={styles.citation}>
+              {" "}
+              <q>{fact.quote}</q>
+              {fact.location && ` · ${fact.location}`}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function formatSize(bytes: number): string {

@@ -55,7 +55,15 @@ def test_a_file_is_uploaded_listed_and_downloaded_via_a_presigned_url(api: str, 
         "latitude": None,
         "longitude": None,
         "created_at": None,
-        "facts": [],  # only photos are analysed
+        # Text is read as a document (S9): the fake model quotes its first sentence.
+        "facts": [
+            {
+                "kind": "event",
+                "statement": "The document says: Receipt: 2 coffees, Café Nero, 09:14",
+                "quote": "Receipt: 2 coffees, Café Nero, 09:14",
+                "location": None,
+            }
+        ],
     }
     assert [e["id"] for e in listed(api, cookie)] == [evidence["id"]]
 

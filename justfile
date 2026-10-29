@@ -66,6 +66,7 @@ infra-plan:
 graphs:
     uv run python src/detective/agent.py
     uv run python src/detective/photo_analysis.py
+    uv run python src/detective/evidence_analysis.py
 
 # Lint, format check and type check (Python + web)
 check:
