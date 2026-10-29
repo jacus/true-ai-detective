@@ -41,6 +41,10 @@ def test_client_attaches_a_photo_a_file_a_link_and_a_pin(
         locker.get_by_role("link", name="notes.txt").click()
     assert download.value.suggested_filename == "notes.txt"
     assert Path(download.value.path()).read_bytes() == b"Seen at 9pm by the bakery"
+    # ...and read as a document: the (fake) model's fact, with the quote it is based on.
+    expect(locker.get_by_role("list", name="Facts from notes.txt")).to_have_text(
+        "The document says: Seen at 9pm by the bakery Seen at 9pm by the bakery"
+    )
 
     # A link.
     locker.get_by_label("Link").fill("https://example.com/lost-umbrella")

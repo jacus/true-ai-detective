@@ -14,7 +14,7 @@ import base64
 import io
 import operator
 from pathlib import Path
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -58,10 +58,12 @@ class PhotoFacts(BaseModel):
 
 
 class Found(TypedDict):
-    """A fact before it is stored."""
+    """A fact before it is stored. Facts read in text also carry their citation."""
 
     kind: FactKind
     statement: str
+    quote: NotRequired[str]
+    location: NotRequired[str | None]
 
 
 class PhotoAnalysis(TypedDict):

@@ -52,12 +52,15 @@ async def run_detective(
     """
     run = run.model_copy(update={"thread_id": str(case.id)})
     found = await db.execute(
-        select(Fact.statement, Evidence.label)
+        select(Fact.statement, Fact.location, Evidence.label)
         .join(Evidence, Fact.evidence_id == Evidence.id)
         .where(Fact.case_id == case.id)
         .order_by(Fact.created_at)
     )
-    case_facts = [f"{statement} (from {label})" for statement, label in found]
+    case_facts = [
+        f"{statement} (from {label}{f', {location}' if location else ''})"
+        for statement, location, label in found
+    ]
     encoder = EventEncoder(accept=request.headers.get("accept", "text/event-stream"))
 
     async def events():
