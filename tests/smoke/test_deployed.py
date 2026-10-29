@@ -232,6 +232,27 @@ def test_deployed_detective_recalls_from_the_case_memory() -> None:
     assert "anna.k@example.com" in reply.lower(), f"the detective answers from what it recalled: {reply}"
 
 
+def test_deployed_pin_is_a_fact_and_its_indexing_is_traced() -> None:
+    cookie = log_in()
+    started = datetime.now(UTC)
+    label = f"Smoke pin {uuid.uuid4().hex[:6]}"
+
+    pin = httpx.post(
+        f"{API_URL}/cases/current/evidence/pins",
+        json={"label": label, "latitude": 50.06143, "longitude": 19.93658},
+        headers={"cookie": cookie},
+        timeout=30,
+    )
+
+    assert pin.status_code == 201, pin.text
+    [fact] = pin.json()["facts"]
+    assert fact["statement"] == f'The client marked "{label}" on the map at 50.06143, 19.93658'
+    root, _ = find_trace(
+        started, lambda run: run.name == "index-evidence" and run.inputs.get("evidence") == label
+    )
+    assert root.outputs and root.outputs["documents"][0]["text"] == fact["statement"]
+
+
 def test_deployed_link_is_fetched_and_read() -> None:
     cookie = log_in()
     started = datetime.now(UTC)

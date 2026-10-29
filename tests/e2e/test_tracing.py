@@ -87,3 +87,45 @@ def test_tests_never_trace_with_the_langsmith_settings_from_your_env(
         _stop(proc)  # the SDK flushes pending traces on shutdown, so anything traced has arrived by now
 
     assert traced(fake_langsmith, project) == []
+
+
+def test_indexing_evidence_is_traced_with_what_was_embedded(
+    database_url: str, fake_openai: str, s3_endpoint: str, fake_langsmith: str
+) -> None:
+    project = f"test-{uuid.uuid4()}"
+    proc, api = start_api(
+        database_url,
+        fake_openai,
+        s3_endpoint,
+        langsmith={
+            "LANGSMITH_TRACING": "true",
+            "LANGSMITH_ENDPOINT": fake_langsmith,
+            "LANGSMITH_API_KEY": "lsv2-test-key",
+            "LANGSMITH_PROJECT": project,
+        },
+    )
+    try:
+        cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+        note = httpx.post(
+            f"{api}/cases/current/evidence/files",
+            files={"file": ("note.txt", b"The umbrella was green.", "text/plain")},
+            headers={"cookie": cookie},
+        ).json()
+        deadline = time.monotonic() + 15
+        while not (runs := [r for r in traced(fake_langsmith, project) if r["name"] == "index-evidence"]):
+            assert time.monotonic() < deadline, "no index-evidence run"
+            time.sleep(0.2)
+    finally:
+        _stop(proc)
+
+    [run] = runs
+    assert run["inputs"] == {
+        "evidence": "note.txt",
+        "evidence_id": note["id"],
+        "case_id": run["inputs"]["case_id"],
+    }
+    assert run["outputs"]["count"] == 2
+    assert [(d["kind"], d["text"]) for d in run["outputs"]["documents"]] == [
+        ("fact", 'The document says: The umbrella was green. "The umbrella was green."'),
+        ("chunk", "The umbrella was green."),
+    ]

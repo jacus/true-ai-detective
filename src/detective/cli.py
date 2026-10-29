@@ -85,8 +85,9 @@ def reindex() -> None:
             async with SessionLocal() as db:
                 await act_as(db, client_id)  # from here on, as that client: RLS applies, also to the store
                 for evidence in await db.scalars(select(Evidence).where(Evidence.case_id == case_id)):
-                    await memory.forget(evidence)
-                    await memory.index(evidence, await chunks_of(evidence))
+                    # ty (beta) can't read the signature @traceable keeps (a ParamSpec); the calls match.
+                    await memory.forget(evidence)  # ty: ignore[invalid-argument-type]
+                    await memory.index(evidence, await chunks_of(evidence))  # ty: ignore[invalid-argument-type]
                     indexed += 1
         await engine.dispose()
         return indexed
