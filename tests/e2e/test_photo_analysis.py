@@ -22,9 +22,7 @@ BIKE = "A red bicycle leans against the wall"
 def structured_requests(fake_openai: str, schema: str) -> list[dict]:
     """Structured-output requests (not streamed) the app sent asking for that schema."""
     received = httpx.get(f"{fake_openai}/received").json()
-    return [
-        r for r in received if not r.get("stream") and r["response_format"]["json_schema"]["name"] == schema
-    ]
+    return [r for r in received if r.get("response_format", {}).get("json_schema", {}).get("name") == schema]
 
 
 def vision_requests(fake_openai: str) -> list[dict]:

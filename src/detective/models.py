@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Identity, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -111,7 +111,7 @@ class Evidence(Base):
     latitude: Mapped[float | None]
     longitude: Mapped[float | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    facts: Mapped[list[Fact]] = relationship(lazy="selectin", order_by="Fact.created_at")
+    facts: Mapped[list[Fact]] = relationship(lazy="selectin", order_by="Fact.seq")
 
 
 class FactKind(enum.StrEnum):
@@ -145,6 +145,8 @@ class Fact(Base):
     __tablename__ = "facts"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # The order facts were found in. Not created_at: within one transaction now() is the same for every row.
+    seq: Mapped[int] = mapped_column(Identity(always=True))
     case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
     evidence_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("evidence.id", ondelete="CASCADE"), index=True)
     kind: Mapped[FactKind] = mapped_column(

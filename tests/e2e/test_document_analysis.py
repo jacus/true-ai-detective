@@ -151,8 +151,11 @@ def test_the_detective_knows_where_each_fact_is_written(
     cookie = sign_up(api, database_url, unique_email(), PASSWORD)
     upload(api, cookie, "witness.pdf", witness_statement(), "application/pdf")
 
-    run_agent(api, cookie, "Who saw it?")
+    run_agent(api, cookie, "Who wrote the witness statement?")
 
-    assert f"The document says: {WITNESS_PAGES[0].split('. ')[0]}. (from witness.pdf, page 1)" in model_saw(
-        fake_openai
-    )
+    # What recall found (S11) reaches the detective with its source: the fact, its quote, file and page.
+    first_sentence = f"{WITNESS_PAGES[0].split('. ')[0]}."
+    recalled = json.loads(model_saw(fake_openai))[0]["content"].splitlines()
+    assert f'The document says: {first_sentence} "{first_sentence}" (from witness.pdf, page 1)' in [
+        line.removeprefix("- ") for line in recalled
+    ]

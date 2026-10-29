@@ -4,9 +4,13 @@ The app reaches it through the OpenAI SDK's own `OPENAI_BASE_URL` setting, so ap
 Run: `python tests/e2e/fake_openai.py <port>`.
 """
 
+import base64
 import json
+import math
 import re
+import struct
 import sys
+import zlib
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -98,6 +102,43 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+DIMENSIONS = 1536  # as text-embedding-3-small
+STOPWORDS = {"the", "and", "was", "who", "what", "with", "from", "that", "this", "for", "are", "did", "does"}
+
+
+def embedding(text: str) -> list[float]:
+    """Bag of words hashed into a unit vector: texts sharing words are close (cosine), others far apart."""
+    vector = [0.0] * DIMENSIONS
+    for word in re.findall(r"[a-z0-9@.+]+", text.lower()):
+        word = word.strip(".")
+        if len(word) >= 3 and word not in STOPWORDS:
+            vector[zlib.crc32(word.encode()) % DIMENSIONS] += 1.0
+    vector[0] += 0.01  # never all zeros: a cosine distance to a zero vector is undefined
+    norm = math.sqrt(sum(x * x for x in vector))
+    return [x / norm for x in vector]
+
+
+@app.post("/v1/embeddings")
+async def embeddings(request: Request) -> dict:
+    payload = await request.json()
+    received.append(payload)
+    texts = [payload["input"]] if isinstance(payload["input"], str) else payload["input"]
+    as_base64 = payload.get("encoding_format") == "base64"  # the OpenAI SDK's default: packed float32s
+
+    def encoded(vector: list[float]) -> list[float] | str:
+        return base64.b64encode(struct.pack(f"<{len(vector)}f", *vector)).decode() if as_base64 else vector
+
+    return {
+        "object": "list",
+        "data": [
+            {"object": "embedding", "index": i, "embedding": encoded(embedding(t))}
+            for i, t in enumerate(texts)
+        ],
+        "model": payload["model"],
+        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+    }
 
 
 @app.post("/answers/{schema}")

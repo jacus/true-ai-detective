@@ -202,6 +202,36 @@ def test_deployed_board_is_rebuilt_from_new_evidence() -> None:
     assert "update_board" in names and "detective" not in names
 
 
+def test_deployed_detective_recalls_from_the_case_memory() -> None:
+    cookie = log_in()
+    upload = httpx.post(
+        f"{API_URL}/cases/current/evidence/files",
+        files={"file": ("witness.pdf", witness_statement(), "application/pdf")},
+        headers={"cookie": cookie},
+        timeout=120,
+    )
+    assert upload.status_code == 201, upload.text
+    started = datetime.now(UTC)
+    question = "What is the email address of the witness?"
+
+    with httpx.stream(
+        "POST",
+        f"{API_URL}/agent",
+        json=run_input(question),
+        headers={"accept": "text/event-stream", "cookie": cookie},
+        timeout=90,
+    ) as response:
+        assert response.status_code == 200
+        events = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
+
+    reply = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+    _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
+    [search] = [run for run in runs if run.run_type == "retriever"]
+    found = json.dumps(search.outputs)
+    assert "anna.k@example.com" in found and "witness.pdf" in found, "recall found the witness's contact"
+    assert "anna.k@example.com" in reply.lower(), f"the detective answers from what it recalled: {reply}"
+
+
 def test_deployed_link_is_fetched_and_read() -> None:
     cookie = log_in()
     started = datetime.now(UTC)

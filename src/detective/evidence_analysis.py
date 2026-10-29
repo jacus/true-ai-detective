@@ -2,7 +2,7 @@
 
 One LangGraph graph for all of them (draw it: `just graphs`), routed by what the evidence is:
 
-    START ─route─→ photo ──────────────────────────────────────────→ END   (the photo-analysis graph, S8)
+    START ─route─→ photo ──────────────────────────────────────────→ END   (the photo-analysis subgraph, S8)
                ├─→ read_document ─┐
                └─→ fetch_page ────┴─ to_each_chunk ═Send═→ chunk_facts ×N → END
 
@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from pypdf import PdfReader
 
 from detective import photo_analysis
+from detective.memory import Chunk
 from detective.models import FactKind
 from detective.photo_analysis import Found
 from detective.settings import settings
@@ -161,11 +162,6 @@ def route(state: EvidenceAnalysis) -> Literal["photo", "read_document", "fetch_p
     return "read_document" if state["kind"] == "document" else "fetch_page"
 
 
-async def photo(state: EvidenceAnalysis) -> dict:
-    """The S8 graph, called from a node: its state schema differs from ours, so we map in and out."""
-    return {"facts": await photo_analysis.analyse(state["content"], state["content_type"])}
-
-
 def read_document(state: EvidenceAnalysis) -> dict:
     if state["content_type"] == "application/pdf":
         pages = PdfReader(io.BytesIO(state["content"])).pages
@@ -220,8 +216,13 @@ def note_unread(state: EvidenceAnalysis) -> dict:
     return {"facts": [note]}
 
 
+class Analysis(TypedDict):
+    facts: list[Found]
+    chunks: list[Chunk]  # the text it read, for the case memory (S11)
+
+
 builder = StateGraph(EvidenceAnalysis)  # ty: ignore[invalid-argument-type]
-builder.add_node(photo)
+builder.add_node("photo", photo_analysis.graph)  # a subgraph sharing content, content_type and facts
 builder.add_node(read_document)
 builder.add_node(fetch_page)
 builder.add_node(note_unread)
@@ -240,7 +241,7 @@ async def analyse(
     content: bytes = b"",
     content_type: str = "",
     url: str | None = None,
-) -> list[Found]:
+) -> Analysis:
     result = await graph.ainvoke(
         {
             "kind": kind,
@@ -252,7 +253,10 @@ async def analyse(
         },
         config={"max_concurrency": MAX_PARALLEL_CALLS},
     )
-    return result["facts"]
+    chunks: list[Chunk] = [
+        {"text": c.page_content, "location": c.metadata.get("location")} for c in result["chunks"]
+    ]
+    return {"facts": result["facts"], "chunks": chunks}
 
 
 if __name__ == "__main__":

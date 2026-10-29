@@ -3,7 +3,7 @@
 Upload goes through the api (it checks size and stores under the case); download is a redirect to a
 short-lived presigned S3 URL, minted only after row-level security found the evidence in the caller's case.
 Photos, documents (PDF, text) and links are analysed when added (`evidence_analysis` graph) and stored with
-the facts found in them.
+the facts found in them; the facts and the text read are then indexed in the case memory (`memory`, RAG).
 """
 
 import io
@@ -20,9 +20,11 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from detective import memory
 from detective.cases import current_case
 from detective.db import get_db
 from detective.evidence_analysis import analyse
+from detective.memory import Chunk
 from detective.models import Case, Evidence, EvidenceKind, Fact, FactKind
 from detective.photo_analysis import Found
 from detective.settings import settings
@@ -88,10 +90,13 @@ def facts_from(case: Case, found: list[Found]) -> list[Fact]:
     ]
 
 
-async def add(db: AsyncSession, evidence: Evidence) -> EvidenceOut:
+async def add(db: AsyncSession, evidence: Evidence, chunks: list[Chunk] | None = None) -> EvidenceOut:
     db.add(evidence)
     await db.commit()
     await db.refresh(evidence)  # created_at comes from the database
+    # After the commit: the memory rows reference the evidence. If embedding fails now, the evidence is kept
+    # but not searchable until `detective reindex`.
+    await memory.index(evidence, chunks or [])
     return EvidenceOut.model_validate(evidence)
 
 
@@ -132,10 +137,11 @@ async def upload_file(
         size_bytes=file.size,
     )
     # Before anything is stored: if a model call fails, the upload fails as a whole.
-    if photo:
-        evidence.facts = facts_from(case, await analyse("photo", content, content_type))
-    elif is_document(content_type):
-        evidence.facts = facts_from(case, await analyse("document", content, content_type))
+    chunks: list[Chunk] = []
+    if photo or is_document(content_type):
+        analysis = await analyse("photo" if photo else "document", content, content_type)
+        evidence.facts = facts_from(case, analysis["facts"])
+        chunks = analysis["chunks"]
     # boto3 is blocking, so it runs in a worker thread (FastAPI's documented way for sync libraries).
     await run_in_threadpool(
         s3.upload_fileobj,
@@ -144,7 +150,7 @@ async def upload_file(
         object_key(case.id, evidence.id),
         ExtraArgs={"ContentType": evidence.content_type},
     )
-    return await add(db, evidence)
+    return await add(db, evidence, chunks)
 
 
 @router.post("/links", status_code=status.HTTP_201_CREATED)
@@ -153,8 +159,9 @@ async def add_link(
 ) -> EvidenceOut:
     url = str(link.url)
     evidence = Evidence(case_id=case.id, kind=EvidenceKind.link, label=url, url=url)
-    evidence.facts = facts_from(case, await analyse("page", url=url))
-    return await add(db, evidence)
+    analysis = await analyse("page", url=url)
+    evidence.facts = facts_from(case, analysis["facts"])
+    return await add(db, evidence, analysis["chunks"])
 
 
 @router.post("/pins", status_code=status.HTTP_201_CREATED)

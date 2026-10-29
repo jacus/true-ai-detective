@@ -1,6 +1,8 @@
 """Photo analysis: what an uploaded photo tells the investigation, as facts linked to the photo.
 
-A small LangGraph graph, run once per uploaded photo (draw it: `just graphs`):
+A small LangGraph graph, run as a subgraph of `evidence-analysis` for every uploaded photo (draw it:
+`just graphs`). Its state shares `content`, `content_type` and `facts` with the parent graph, so the compiled
+graph is the parent's `photo` node itself; `rejected` and `attempts` are its own and start empty.
 
     START → read_exif → look_at_photo ──(answer rejected, first time)──→ look_at_photo
                                       └─(accepted, or rejected twice)─→ END
@@ -67,11 +69,11 @@ class Found(TypedDict):
 
 
 class PhotoAnalysis(TypedDict):
-    photo: str  # base64
+    content: bytes  # the photo (shared with the parent graph)
     content_type: str
     facts: Annotated[list[Found], operator.add]  # reducer: each node's facts are appended
-    rejected: str | None  # why the model's last answer was refused
-    attempts: int
+    rejected: NotRequired[str | None]  # why the model's last answer was refused
+    attempts: NotRequired[int]
 
 
 INSTRUCTIONS = (
@@ -82,7 +84,7 @@ vision = init_chat_model(settings.chat_model).with_structured_output(PhotoFacts)
 
 
 def read_exif(state: PhotoAnalysis) -> dict:
-    exif = Image.open(io.BytesIO(base64.b64decode(state["photo"]))).getexif()
+    exif = Image.open(io.BytesIO(state["content"])).getexif()
     Base, GPS = ExifTags.Base, ExifTags.GPS
     facts: list[Found] = []
     taken = exif.get_ifd(ExifTags.IFD.Exif).get(Base.DateTimeOriginal) or exif.get(Base.DateTime)
@@ -112,13 +114,17 @@ async def look_at_photo(state: PhotoAnalysis) -> dict:
         HumanMessage(
             content=[
                 {"type": "text", "text": "What does this photo show?"},
-                {"type": "image", "base64": state["photo"], "mime_type": state["content_type"]},
+                {
+                    "type": "image",
+                    "base64": base64.b64encode(state["content"]).decode(),
+                    "mime_type": state["content_type"],
+                },
             ]
         ),
     ]
-    if state["rejected"]:
+    if state.get("rejected"):
         messages.append(HumanMessage(f"Your last answer was rejected: {state['rejected']}. Answer again."))
-    attempts = state["attempts"] + 1
+    attempts = state.get("attempts", 0) + 1
     try:
         seen = await vision.ainvoke(messages)
     except ValidationError as error:  # the OpenAI SDK parses the answer into PhotoFacts, validators included
@@ -130,7 +136,7 @@ async def look_at_photo(state: PhotoAnalysis) -> dict:
 
 def retry_if_rejected(state: PhotoAnalysis) -> Literal["look_at_photo", "__end__"]:
     # The Literal return type is how LangGraph knows (and draws) where this edge can go.
-    return "look_at_photo" if state["rejected"] and state["attempts"] < MAX_ATTEMPTS else END  # ty: ignore[invalid-return-type]
+    return "look_at_photo" if state.get("rejected") and state.get("attempts", 0) < MAX_ATTEMPTS else END  # ty: ignore[invalid-return-type]
 
 
 # ty (beta) doesn't yet match TypedDicts against LangGraph's StateLike protocol; this is the documented usage.
@@ -141,19 +147,6 @@ builder.add_edge(START, "read_exif")
 builder.add_edge("read_exif", "look_at_photo")
 builder.add_conditional_edges("look_at_photo", retry_if_rejected)
 graph = builder.compile(name="photo-analysis")
-
-
-async def analyse(photo: bytes, content_type: str) -> list[Found]:
-    result = await graph.ainvoke(
-        {
-            "photo": base64.b64encode(photo).decode(),
-            "content_type": content_type,
-            "facts": [],
-            "rejected": None,
-            "attempts": 0,
-        }
-    )
-    return result["facts"]
 
 
 if __name__ == "__main__":
