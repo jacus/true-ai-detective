@@ -44,7 +44,8 @@ export default defineRailway(() => {
   // No public domain: only the api queries it, over the private network. Rebuilt only when searxng/ changes.
   const searxng = service("searxng", {
     source: github("jacus/true-ai-detective", { branch: "main", rootDirectory: "searxng" }),
-    build: { builder: "DOCKERFILE", watchPatterns: ["/searxng/**"] },
+    // Railway builds searxng/Dockerfile on its own (it detects the Dockerfile).
+    build: { watchPatterns: ["/searxng/**"] },
     healthcheck: "/healthz",
     replicas: { "europe-west4-drams3a": 1 },
     env: {
