@@ -54,7 +54,9 @@ test *args:
 
 # Smoke-test a deployed environment (real nano calls), e.g. `just smoke https://api-… https://web-…`
 smoke api_url web_url:
-    SMOKE_API_URL={{api_url}} SMOKE_WEB_URL={{web_url}} uv run pytest tests/smoke -q
+    SMOKE_API_URL={{api_url}} SMOKE_WEB_URL={{web_url}} \
+    LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com LANGSMITH_PROJECT=true-ai-detective \
+    uv run pytest tests/smoke -q
 
 # Check Railway matches .railway/railway.ts (exit 0 = in sync, 2 = changes pending)
 infra-plan:
