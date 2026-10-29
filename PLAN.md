@@ -32,13 +32,13 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 | D11 | Prod infra | Railway project `true-ai-detective` (europe-west4), defined in **Railway IaC** `.railway/railway.ts` (`railway config plan/apply`). Postgres+pgvector is its own service (`pgvector/pgvector:pg18`, same image as local/tests) on a persistent volume, so it survives app and DB redeploys; no public TCP proxy, private network only. `api` and `web` services built by Railpack from GitHub `main`; the api's DB URLs compose `pgvector` variables. Railway Bucket `evidence` (ams, private, S3 via public endpoint) feeds the api boto3's own `AWS_*` variables by reference |
 | D12 | Tooling | Python 3.14, uv, ruff, ty, pytest, `just` as task runner |
 | D14 | CI & deploy | **No external CI.** The in-session Shift Zero gate is the CI (every change goes through Claude, scope adjusted to the change). Railway auto-deploys `main` from GitHub; Railway's `/health` healthcheck blocks broken deploys; a smoke test against the public URL runs in-session after each deploy |
+| D17 | Observability | **LangSmith** (EU region), switched on by its own env vars (`LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT`, `LANGSMITH_PROJECT`); LangChain/LangGraph trace themselves, no code. Set on the api in Railway only; tests never trace. Free tier (5k traces/month, 14-day retention) is for debugging; our own audit log stays the record. Sensitive inputs/outputs redacted before upload (S18) |
 | D13 | Decision model | JEV (`typesafe-ai/jev`, Vercel AI Gateway) is a candidate for fast typed decisions (next-step routing, relevance scoring). Verified working via AI SDK `experimental_decide` |
 
 ### Open decisions (settled in their story)
 
 - **S12:** how the Python graph calls JEV. With the Gateway key it's only callable from the TypeScript AI SDK; from Python it needs TypeSafe's `typesafe-sdk` with a `TYPESAFE_API_KEY`. Alternative: route with an OpenAI model
 - **S13:** search API provider (Tavily / Brave / Exa)
-- **S18:** observability (self-hosted Langfuse on Railway vs LangSmith)
 - **S19:** eval tooling
 
 ## Prerequisites (your side)
@@ -46,7 +46,8 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 - [x] Docker in WSL
 - [x] OpenAI API key (`.env`)
 - [x] Vercel AI Gateway key + `JEV_MODEL` (`.env`)
-- [ ] A few **known-answer cases** to feed the detective (needed by S8)
+- [ ] LangSmith account in the **EU region** + API key in `.env` as `LANGSMITH_API_KEY` (needed by S8a)
+- [ ] A few **known-answer cases** to feed the detective (S8 tests use a synthetic photo; your real ones feed the S19 evals)
 
 ## Architecture
 
@@ -89,7 +90,8 @@ Current state: Logged-in chat with the detective at https://<your-web>.up.railwa
 
 | | Story | Done when (observable e2e) | You'll learn |
 |---|---|---|---|
-| ⬜ | **S8 Photo analysis.** As a client, I upload a photo and the detective extracts facts (text, objects, place hints, EXIF/GPS), each linked to its source. | Known-answer photo → expected facts stored with source links | Vision model, structured output with Pydantic, EXIF parsing |
+| ⬜ | **S8a Tracing.** As the owner I see every detective run in LangSmith: each graph node, the exact prompt, tokens, cost and latency. | Prod smoke: one chat message → LangSmith's `Client` finds that run with its `detective` node and nano call; e2e prove tests send nothing to LangSmith | LangSmith tracing via env vars, run trees, LangSmith SDK `Client`, secrets in Railway IaC |
+| ⬜ | **S8 Photo analysis.** As a client, I upload a photo and the detective extracts facts (text, objects, place hints, EXIF/GPS), each linked to its source, and uses them in the chat. | Synthetic known-answer photo (planted EXIF GPS + visible sign) → expected facts stored with source links; the detective's reply mentions them; facts RLS-isolated | A second LangGraph graph (`read_exif → look_at_photo → check_facts → save`, typed state, conditional edge, one retry), Pydantic structured output (`with_structured_output`), multimodal messages, EXIF with Pillow, multi-node traces in LangSmith |
 | ⬜ | **S9 Documents & links.** The detective reads PDFs, text and web pages I send. | Known-answer doc/URL → facts with citations; a planted prompt injection in evidence is treated as data | Document parsing, untrusted-content handling |
 | ⬜ | **S10 Case board.** As a client I watch leads, hypotheses, a timeline and contradictions update live. | Playwright: new evidence → board updates without reload | CopilotKit shared state, LangGraph state design |
 | ⬜ | **S11 Case memory search.** The detective recalls relevant facts from the whole case history. | Question answered with sourced facts; case B's embeddings never returned (test) | OpenAI embeddings, pgvector, hybrid full-text + vector search under RLS |
@@ -109,7 +111,7 @@ Current state: Logged-in chat with the detective at https://<your-web>.up.railwa
 
 | | Story | Done when (observable e2e) | You'll learn |
 |---|---|---|---|
-| ⬜ | **S18 Observability.** As the owner I see traces of every investigation step, with sensitive content redacted. | Trace visible for a run; a test shows evidence text and secrets are redacted | Langfuse/LangSmith, OpenTelemetry, self-hosting on Railway |
+| ⬜ | **S18 Redaction & audit.** As the owner I see an audit trail of investigation steps, and traces never carry sensitive content. | A test shows evidence text and secrets are redacted from traces (LangSmith `hide_inputs`/`hide_outputs`); audit view lists a run's steps | LangSmith client redaction hooks, audit queries |
 | ⬜ | **S19 Evals.** I measure how well the detective solves my known-answer cases. | Eval run produces a score table; regressions visible | Eval datasets, LLM-as-judge vs exact checks, JEV as a cheap grader |
 | ⬜ | **S20 OSINT MCP server.** Untrusted web tools run in a separate MCP service with no DB access; I can also use it from Claude Code. | Detective uses tools via MCP; the MCP service has no DB credentials (checked); Claude Code can call it | MCP server, `langchain-mcp-adapters`, Railway private networking |
 | ⬜ | **S21 Oversight.** As the owner I'm alerted to suspicious behaviour; deterministic controls block it even when oversight misses. | Injected attack → blocked by controls + alert raised; with oversight disabled → still blocked | Second agent as monitor, alerting, audit queries |
