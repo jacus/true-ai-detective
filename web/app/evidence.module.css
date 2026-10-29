@@ -35,6 +35,12 @@
   max-height: 10rem;
   border-radius: 6px;
 }
+.facts {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  color: #444;
+  font-size: 0.85rem;
+}
 .hint {
   color: #777;
 }

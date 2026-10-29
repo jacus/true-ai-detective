@@ -2,8 +2,10 @@
 
 Upload goes through the api (it checks size and stores under the case); download is a redirect to a
 short-lived presigned S3 URL, minted only after row-level security found the evidence in the caller's case.
+A photo is analysed on upload (`photo_analysis` graph) and stored with the facts found in it.
 """
 
+import io
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -12,13 +14,15 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from detective.cases import current_case
 from detective.db import get_db
-from detective.models import Case, Evidence, EvidenceKind
+from detective.models import Case, Evidence, EvidenceKind, Fact, FactKind
+from detective.photo_analysis import analyse
 from detective.settings import settings
 from detective.storage import object_key, s3
 
@@ -27,6 +31,13 @@ router = APIRouter(prefix="/cases/current/evidence", tags=["evidence"])
 # Shown in the browser; every other type (HTML, SVG, PDF…) is only ever downloaded.
 INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 DOWNLOAD_URL_SECONDS = 300
+
+
+class FactOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: FactKind
+    statement: str
 
 
 class EvidenceOut(BaseModel):
@@ -41,6 +52,7 @@ class EvidenceOut(BaseModel):
     latitude: float | None
     longitude: float | None
     created_at: datetime
+    facts: list[FactOut]
 
 
 class LinkIn(BaseModel):
@@ -80,18 +92,29 @@ async def upload_file(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The file is empty")
     if file.size > settings.evidence_max_bytes:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "The file is too big")
+    content = await file.read()
+    content_type = file.content_type or "application/octet-stream"
+    photo = content_type in INLINE_TYPES
+    if photo:
+        try:
+            Image.open(io.BytesIO(content)).verify()
+        except UnidentifiedImageError, SyntaxError, OSError:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That photo can't be read") from None
     evidence = Evidence(
         id=uuid.uuid4(),
         case_id=case.id,
         kind=EvidenceKind.file,
         label=file.filename or "unnamed",
-        content_type=file.content_type or "application/octet-stream",
+        content_type=content_type,
         size_bytes=file.size,
     )
+    if photo:  # before anything is stored: if the model call fails, the upload fails as a whole
+        found = await analyse(content, content_type)
+        evidence.facts = [Fact(case_id=case.id, kind=f["kind"], statement=f["statement"]) for f in found]
     # boto3 is blocking, so it runs in a worker thread (FastAPI's documented way for sync libraries).
     await run_in_threadpool(
         s3.upload_fileobj,
-        file.file,
+        io.BytesIO(content),
         settings.evidence_bucket,
         object_key(case.id, evidence.id),
         ExtraArgs={"ContentType": evidence.content_type},

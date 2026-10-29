@@ -7,6 +7,7 @@ import httpx
 from conftest import sign_up, unique_email
 from playwright.sync_api import Page, expect
 from test_evidence import PHOTO
+from test_photo_analysis import BIKE, SIGN
 from test_web_chat import PASSWORD, log_in
 
 
@@ -27,6 +28,9 @@ def test_client_attaches_a_photo_a_file_a_link_and_a_pin(
     locker.get_by_role("button", name="Upload").click()
     photo = locker.get_by_role("img", name="scene.png")
     assert photo.evaluate("img => img.decode().then(() => img.naturalWidth)") == 1
+    # ...listed with what the (fake) vision model saw in it.
+    facts = locker.get_by_role("list", name="Facts from scene.png").get_by_role("listitem")
+    expect(facts).to_have_text([SIGN, BIKE])
 
     # Any other file: downloaded under its own name, same bytes.
     locker.get_by_label("File or photo").set_input_files(
@@ -55,6 +59,7 @@ def test_client_attaches_a_photo_a_file_a_link_and_a_pin(
     # Everything is kept with the case.
     page.reload()
     expect(locker.get_by_test_id("evidence-item")).to_have_count(4)
+    expect(facts).to_have_text([SIGN, BIKE])
     assert locker.get_by_role("img", name="scene.png").evaluate("img => img.decode().then(() => 1)") == 1
 
     # Reset wipes the locker too.

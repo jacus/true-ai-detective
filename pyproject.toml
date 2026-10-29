@@ -14,6 +14,7 @@ dependencies = [
     "langgraph>=1.2.18",
     "langgraph-checkpoint-postgres>=3.2.0",
     "langsmith>=0.14.14",
+    "pillow>=13.0.0",
     "psycopg[binary]>=3.3.6",
     "pwdlib[argon2]>=0.3.1",
     "pydantic-settings>=2.16.2",
@@ -39,6 +40,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests/e2e"]
+pythonpath = ["tests"]  # shared test helpers, e.g. known_photo
 
 [tool.ruff]
 line-length = 110

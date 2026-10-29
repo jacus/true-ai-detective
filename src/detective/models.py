@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -110,4 +110,34 @@ class Evidence(Base):
     url: Mapped[str | None]
     latitude: Mapped[float | None]
     longitude: Mapped[float | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    facts: Mapped[list[Fact]] = relationship(lazy="selectin", order_by="Fact.created_at")
+
+
+class FactKind(enum.StrEnum):
+    # From the photo's EXIF metadata (read by code)
+    taken_at = "taken_at"
+    camera = "camera"
+    location = "location"
+    # Seen in the photo by the vision model
+    text = "text"
+    object = "object"
+    place = "place"
+
+
+class Fact(Base):
+    """One thing learned from a piece of evidence, always linked to it (its source).
+
+    Row-level security: visible only if its case is, like `evidence`. Deleted with its evidence or case.
+    """
+
+    __tablename__ = "facts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("evidence.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[FactKind] = mapped_column(
+        Enum(FactKind, native_enum=False, create_constraint=True, length=16, validate_strings=True)
+    )
+    statement: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
