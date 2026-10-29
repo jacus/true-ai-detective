@@ -55,6 +55,7 @@ def test_a_file_is_uploaded_listed_and_downloaded_via_a_presigned_url(api: str, 
         "latitude": None,
         "longitude": None,
         "created_at": None,
+        "facts": [],  # only photos are analysed
     }
     assert [e["id"] for e in listed(api, cookie)] == [evidence["id"]]
 

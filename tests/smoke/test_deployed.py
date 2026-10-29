@@ -1,7 +1,7 @@
 """Smoke checks against a deployed environment. Run with `just smoke <api-url> <web-url>`.
 
 Logs in as a dedicated smoke-test client (SMOKE_EMAIL / SMOKE_PASSWORD from your local .env).
-The agent, tracing and browser checks make one real call each to the cheap model (fractions of a cent).
+The agent, tracing, photo and browser checks make one real call each to the cheap model (fractions of a cent).
 Tracing is read via the LangSmith SDK's LANGSMITH_* variables (key from .env, the rest from `just smoke`).
 """
 
@@ -9,10 +9,13 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import httpx
+from known_photo import CAMERA, LOCATION, SIGN, TAKEN_AT, known_photo
 from langsmith import Client
+from langsmith.schemas import Run
 from playwright.sync_api import Page, expect
 
 API_URL = os.environ["SMOKE_API_URL"]
@@ -80,6 +83,21 @@ def test_deployed_case_resets_then_remembers_the_conversation() -> None:
     assert saved[0]["content"] == "Smoke test: say hello in five words."
 
 
+def find_trace(started: datetime, is_it: Callable[[Run], bool]) -> tuple[Run, list[Run]]:
+    """A finished trace started after `started` (root run + all its runs). Traces reach LangSmith
+    asynchronously (the api's background thread, then LangSmith's ingestion), so poll for it."""
+    langsmith = Client()
+    project = os.environ["LANGSMITH_PROJECT"]
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        roots = langsmith.list_runs(project_name=project, is_root=True, start_time=started)
+        root = next((run for run in roots if run.end_time and is_it(run)), None)
+        if root is not None:
+            return root, list(langsmith.list_runs(project_name=project, trace_id=root.trace_id))
+        time.sleep(3)
+    raise AssertionError(f"no matching finished trace in LangSmith project {project}")
+
+
 def test_deployed_detective_run_is_traced_in_langsmith() -> None:
     cookie = log_in()
     case_id = httpx.get(f"{API_URL}/cases/current", headers={"cookie": cookie}, timeout=15).json()["id"]
@@ -95,25 +113,33 @@ def test_deployed_detective_run_is_traced_in_langsmith() -> None:
         assert response.status_code == 200
         response.read()
 
-    # Traces reach LangSmith asynchronously (api background thread, then LangSmith's ingestion): poll for it.
-    langsmith = Client()
-    project = os.environ["LANGSMITH_PROJECT"]
-    deadline = time.monotonic() + 120
-    root = None
-    while root is None and time.monotonic() < deadline:
-        roots = langsmith.list_runs(project_name=project, is_root=True, start_time=started)
-        root = next((run for run in roots if marker in json.dumps(run.inputs) and run.end_time), None)
-        if root is None:
-            time.sleep(3)
-    assert root is not None, f"no finished trace for {marker!r} in LangSmith project {project}"
-    assert root.extra["metadata"]["thread_id"] == case_id
-
-    runs = list(langsmith.list_runs(project_name=project, trace_id=root.trace_id))
+    root, runs = find_trace(started, lambda run: marker in json.dumps(run.inputs))
+    assert root.metadata["thread_id"] == case_id
     [node] = [run for run in runs if run.name == "detective" and run.run_type == "chain"]
     [llm] = [run for run in runs if run.run_type == "llm"]
     assert llm.parent_run_id == node.id
-    assert llm.extra["metadata"]["ls_model_name"] == "gpt-5.4-nano"
+    assert llm.metadata["ls_model_name"] == "gpt-5.4-nano"
     assert llm.total_tokens and llm.total_tokens > 0
+
+
+def test_deployed_detective_reads_a_known_photo() -> None:
+    cookie = log_in()
+    started = datetime.now(UTC)
+
+    created = httpx.post(
+        f"{API_URL}/cases/current/evidence/files",
+        files={"file": ("known.jpg", known_photo(), "image/jpeg")},
+        headers={"cookie": cookie},
+        timeout=90,
+    )
+
+    assert created.status_code == 201, created.text
+    facts = [fact["statement"] for fact in created.json()["facts"]]
+    assert facts[:3] == [TAKEN_AT, CAMERA, LOCATION]  # EXIF, read by code
+    assert any(SIGN in fact.upper() for fact in facts[3:]), f"nano should read the sign: {facts}"
+    # The analysis is traced as its own graph, node by node.
+    _, runs = find_trace(started, lambda run: run.name == "photo-analysis")
+    assert {"read_exif", "look_at_photo"} <= {run.name for run in runs}
 
 
 def test_deployed_evidence_file_round_trips_through_the_bucket() -> None:

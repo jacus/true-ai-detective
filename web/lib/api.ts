@@ -72,7 +72,11 @@ export type Evidence = {
   latitude: number | null;
   longitude: number | null;
   created_at: string;
+  /** What the api learned from it (photos: EXIF metadata and what the vision model saw). */
+  facts: Fact[];
 };
+
+export type Fact = { kind: string; statement: string };
 
 /** Files, links and map pins attached to the case (file bytes are fetched separately, via a presigned URL). */
 export async function getCaseEvidence(): Promise<Evidence[]> {

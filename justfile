@@ -62,6 +62,11 @@ smoke api_url web_url:
 infra-plan:
     railway config plan --detailed-exit-code
 
+# Compile each LangGraph graph and draw it to docs/graphs/*.png (rendered by mermaid.ink)
+graphs:
+    uv run python src/detective/agent.py
+    uv run python src/detective/photo_analysis.py
+
 # Lint, format check and type check (Python + web)
 check:
     uv run ruff check .

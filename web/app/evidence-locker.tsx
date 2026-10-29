@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import type { Evidence } from "@/lib/api";
 import styles from "./evidence.module.css";
 import type { LatLng } from "./pin-map";
@@ -79,7 +80,7 @@ export function EvidenceLocker({
 
       <form action={uploadFile} className={styles.row}>
         <input type="file" name="file" aria-label="File or photo" required />
-        <button type="submit">Upload</button>
+        <SubmitButton pending="Analysing…">Upload</SubmitButton>
       </form>
 
       <form action={addLink} className={styles.row}>
@@ -117,6 +118,22 @@ export function EvidenceLocker({
   );
 }
 
+// Inside a form: React tells it whether that form's action is still running.
+function SubmitButton({
+  children,
+  pending,
+}: {
+  children: string;
+  pending: string;
+}) {
+  const status = useFormStatus();
+  return (
+    <button type="submit" disabled={status.pending}>
+      {status.pending ? pending : children}
+    </button>
+  );
+}
+
 function postJson(kind: string, body: object): Promise<Response> {
   return fetch(`${EVIDENCE}/${kind}`, {
     method: "POST",
@@ -132,11 +149,21 @@ function EvidenceItem({ item }: { item: Evidence }) {
     case "file":
       if (PHOTO_TYPES.includes(item.content_type ?? "")) {
         return (
-          <a href={file} target="_blank" rel="noopener noreferrer">
-            {/* biome-ignore lint/performance/noImgElement: presigned bucket URLs, not optimizable assets */}
-            <img src={file} alt={item.label} className={styles.photo} />
-            <span>{item.label}</span>
-          </a>
+          <>
+            <a href={file} target="_blank" rel="noopener noreferrer">
+              {/* biome-ignore lint/performance/noImgElement: presigned bucket URLs, not optimizable assets */}
+              <img src={file} alt={item.label} className={styles.photo} />
+              <span>{item.label}</span>
+            </a>
+            <ul
+              className={styles.facts}
+              aria-label={`Facts from ${item.label}`}
+            >
+              {item.facts.map((fact) => (
+                <li key={`${fact.kind}:${fact.statement}`}>{fact.statement}</li>
+              ))}
+            </ul>
+          </>
         );
       }
       return (
