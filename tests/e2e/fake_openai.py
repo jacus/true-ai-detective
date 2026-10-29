@@ -67,7 +67,11 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
     received.append(payload)
     if not payload.get("stream"):
         schema = payload["response_format"]["json_schema"]["name"]
-        answers = {"PhotoFacts": lambda: PHOTO_SIGHTINGS, "DocumentFacts": lambda: document_facts(payload)}
+        answers = {
+            "PhotoFacts": lambda: PHOTO_SIGHTINGS,
+            "DocumentFacts": lambda: document_facts(payload),
+            "Search": lambda: {"query": "the case"},
+        }
         default = answers.get(schema, lambda: case_board(payload))()
         waiting = queued.get(schema, [])
         content = waiting.pop(0) if waiting else json.dumps(default)
@@ -139,6 +143,53 @@ async def embeddings(request: Request) -> dict:
         "model": payload["model"],
         "usage": {"prompt_tokens": 0, "total_tokens": 0},
     }
+
+
+decisions: list[dict] = []
+ACTIONS = ["research", "ask", "consult", "conclude"]
+
+
+@app.post("/v1/decisions")
+async def decide(request: Request) -> dict:
+    """OpenAI's Decisions API (what AI Gateway serves JEV through): "ask" unless a test queued decisions."""
+    payload = await request.json()
+    received.append(payload)
+    queued_decision = decisions.pop(0) if decisions else {"choice": "ask"}
+    usage = {
+        "input_tokens": 100,
+        "input_tokens_details": {"cache_write_tokens": 0, "cached_tokens": 0},
+        "output_tokens": 10,
+        "output_tokens_details": {"reasoning_tokens": 0},
+        "total_tokens": 110,
+    }
+    if queued_decision.get("refusal"):
+        return {
+            "model": payload["model"],
+            "answers": [{"type": "refusal", "name": "next_step"}],
+            "usage": usage,
+        }
+    choice = queued_decision["choice"]
+    default = {action: 0.9 if action == choice else 0.1 / 3 for action in ACTIONS}
+    probabilities = queued_decision.get("probabilities", default)
+    return {
+        "model": payload["model"],
+        "answers": [
+            {
+                "type": "choice",
+                "name": "next_step",
+                "choice": choice,
+                "confidence": probabilities[choice],
+                "probabilities": [{"value": a, "probability": p} for a, p in probabilities.items()],
+            }
+        ],
+        "usage": usage,
+    }
+
+
+@app.post("/decisions")
+async def queue_decisions(request: Request) -> None:
+    """The next decisions, e.g. [{"choice": "research"}, {"choice": "conclude", "probabilities": {...}}]."""
+    decisions.extend(await request.json())
 
 
 @app.post("/answers/{schema}")

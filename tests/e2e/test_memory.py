@@ -109,9 +109,10 @@ def test_recall_embeds_the_question_and_a_board_only_run_recalls_nothing(
     run_agent(api, cookie, None)
     after_refresh = httpx.get(f"{fake_openai}/received").json()[received + len(after_question) :]
 
-    questions = [r["input"] for r in after_question if "input" in r]
+    questions = [r["input"] for r in after_question if "input" in r and "questions" not in r]  # embeddings
     assert questions == [["What was he wearing?"]], "one embedding: the question"
-    assert not [r for r in after_refresh if "input" in r], "the board is rebuilt from facts, without recall"
+    embedded = [r for r in after_refresh if "input" in r and "questions" not in r]
+    assert not embedded, "the board is rebuilt from facts, without recall"
 
 
 def test_one_client_never_recalls_anothers_case(api: str, database_url: str, fake_openai: str) -> None:

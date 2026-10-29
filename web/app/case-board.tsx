@@ -1,10 +1,30 @@
 import type { Board } from "@/lib/api";
 import styles from "./board.module.css";
 
+/** The detective's steps for the latest message, and how sure the decision model was of the last one. */
+export type LastStep = {
+  steps: string[];
+  probability: number | undefined;
+};
+
 /** The case board: leads, hypotheses, a timeline and contradictions (the detective graph's `board` state). */
-export function CaseBoard({ board }: { board: Board }) {
+export function CaseBoard({
+  board,
+  lastStep,
+}: {
+  board: Board;
+  lastStep: LastStep | null;
+}) {
   return (
     <section className={styles.board} aria-label="Case board">
+      {lastStep && lastStep.steps.length > 0 && (
+        // <output> is a status live region: assistive tech announces each new step as it streams in.
+        <output className={styles.lastStep} aria-label="Detective's last step">
+          Detective's last step: {lastStep.steps.join(" → ")}
+          {lastStep.probability !== undefined &&
+            ` (${Math.round(lastStep.probability * 100)}%)`}
+        </output>
+      )}
       <Column title="Leads" empty="No leads yet.">
         {board.leads.map((lead) => (
           <li key={lead.what}>

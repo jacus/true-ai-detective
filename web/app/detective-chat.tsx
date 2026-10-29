@@ -13,7 +13,7 @@ import "@copilotkit/react-core/v2/styles.css";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { Board, Evidence, User } from "@/lib/api";
-import { CaseBoard } from "./case-board";
+import { CaseBoard, type LastStep } from "./case-board";
 import styles from "./evidence.module.css";
 import { EvidenceLocker } from "./evidence-locker";
 
@@ -107,6 +107,14 @@ function CaseView({
   const { copilotkit } = useCopilotKit();
   // Until the first run on this page, the board is the one saved with the case.
   const board: Board = agent.state?.board ?? initialBoard;
+  // The loop's trail for the latest message (S12): e.g. research → conclude, with the decision's probability.
+  const decided = agent.state?.decision;
+  const lastStep: LastStep | null = agent.state?.steps
+    ? {
+        steps: agent.state.steps,
+        probability: decided?.probabilities?.[decided.action],
+      }
+    : null;
 
   // CopilotKit can swap the agent object (e.g. once the runtime connects) while an upload is in flight;
   // the refresh then has to use the agent of *now*, not the one captured when the upload started.
@@ -131,7 +139,7 @@ function CaseView({
           flexDirection: "column",
         }}
       >
-        <CaseBoard board={board} />
+        <CaseBoard board={board} lastStep={lastStep} />
         <div style={{ flex: 1, minHeight: 0 }}>
           <CaseChat caseId={caseId} initialMessages={initialMessages} />
         </div>
