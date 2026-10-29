@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     migrations_database_url: str = "postgresql://detective:detective@localhost:5432/detective"
     # `provider:model` for LangChain's init_chat_model. Very cheap models only (PLAN.md D3).
     chat_model: str = "openai:gpt-5.4-nano"
+    # `provider:model` for LangChain's init_embeddings (case memory, S11). Its vectors are 1536 wide: the
+    # case_memory table's size, so changing the model means a migration and a `detective reindex`.
+    embedding_model: str = "openai:text-embedding-3-small"
     # Session cookie is HTTPS-only. Browsers treat localhost as secure, so this stays on locally too.
     session_cookie_secure: bool = True
     session_days: int = 14

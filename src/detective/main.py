@@ -57,7 +57,7 @@ async def run_detective(
         select(Fact.statement, Fact.location, Evidence.label)
         .join(Evidence, Fact.evidence_id == Evidence.id)
         .where(Fact.case_id == case.id)
-        .order_by(Fact.created_at)
+        .order_by(Fact.seq)
     )
     case_facts = [
         f"{statement} (from {label}{f', {location}' if location else ''})"
@@ -75,7 +75,7 @@ async def run_detective(
                 name="detective",
                 description="True AI Detective",
                 graph=graph,  # ty: ignore[invalid-argument-type]
-                config={"configurable": {"case_facts": case_facts}},
+                config={"configurable": {"case_id": str(case.id), "case_facts": case_facts}},
             )
             async for event in agent.run(run):
                 yield encoder.encode(event)
