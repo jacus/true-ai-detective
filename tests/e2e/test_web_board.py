@@ -29,13 +29,21 @@ def test_new_evidence_updates_the_board_without_a_reload(
     expect(board.get_by_role("list", name="Leads")).to_have_text("Follow up on F1 newest evidence")
     expect(page.get_by_test_id("copilot-assistant-message")).to_have_count(0)  # no chat reply for evidence
 
+    # A map pin is a fact too: it lands on the board the same way.
+    locker.get_by_test_id("pin-map").click()
+    locker.get_by_label("Pin label").fill("Fence")
+    locker.get_by_role("button", name="Add pin").click()
+    expect(timeline.get_by_role("listitem")).to_have_count(2)
+    expect(timeline.get_by_role("listitem").nth(1)).to_contain_text('The client marked "Fence" on the map at')
+
     # A chat turn rebuilds it too, and the case keeps it across a reload.
     message_box = page.get_by_placeholder("Describe what happened…")
     message_box.fill("It was taken yesterday.")
     message_box.press("Enter")
     expect(page.get_by_test_id("copilot-assistant-message")).to_have_count(1)
     page.reload()
-    expect(timeline.get_by_role("listitem")).to_have_text(["as reported " + NOTE[:80]])
+    expect(timeline.get_by_role("listitem")).to_have_count(2)
+    expect(timeline.get_by_role("listitem").first).to_have_text("as reported " + NOTE[:80])
 
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Reset case").click()

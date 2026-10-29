@@ -73,7 +73,10 @@ export function EvidenceLocker({
         {evidence.map((item) => (
           <li key={item.id} data-testid="evidence-item">
             <EvidenceItem item={item} />
-            {item.facts.length > 0 && <Facts item={item} />}
+            {/* A pin's fact only restates the pin, so it isn't listed again. */}
+            {item.kind !== "pin" && item.facts.length > 0 && (
+              <Facts item={item} />
+            )}
           </li>
         ))}
         {evidence.length === 0 && (

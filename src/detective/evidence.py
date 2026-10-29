@@ -77,6 +77,10 @@ class PinIn(BaseModel):
     longitude: float = Field(ge=-180, le=180)
 
 
+def pin_statement(pin: PinIn) -> str:
+    return f'The client marked "{pin.label}" on the map at {pin.latitude:.5f}, {pin.longitude:.5f}'
+
+
 def facts_from(case: Case, found: list[Found]) -> list[Fact]:
     return [
         Fact(
@@ -96,7 +100,7 @@ async def add(db: AsyncSession, evidence: Evidence, chunks: list[Chunk] | None =
     await db.refresh(evidence)  # created_at comes from the database
     # After the commit: the memory rows reference the evidence. If embedding fails now, the evidence is kept
     # but not searchable until `detective reindex`.
-    await memory.index(evidence, chunks or [])
+    await memory.index(evidence, chunks or [])  # ty: ignore[invalid-argument-type]  (@traceable's ParamSpec)
     return EvidenceOut.model_validate(evidence)
 
 
@@ -168,7 +172,10 @@ async def add_link(
 async def add_pin(
     pin: PinIn, case: Annotated[Case, Depends(current_case)], db: Annotated[AsyncSession, Depends(get_db)]
 ) -> EvidenceOut:
-    return await add(db, Evidence(case_id=case.id, kind=EvidenceKind.pin, **pin.model_dump()))
+    evidence = Evidence(case_id=case.id, kind=EvidenceKind.pin, **pin.model_dump())
+    # A pin is a fact too, so the detective can recall it and the board can place it.
+    evidence.facts = [Fact(case_id=case.id, kind=FactKind.location, statement=pin_statement(pin))]
+    return await add(db, evidence)
 
 
 @router.get("/{evidence_id}/file", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
