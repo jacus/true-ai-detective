@@ -117,8 +117,9 @@ def test_deployed_detective_run_is_traced_in_langsmith() -> None:
     root, runs = find_trace(started, lambda run: marker in json.dumps(run.inputs))
     assert root.metadata["thread_id"] == case_id
     [node] = [run for run in runs if run.name == "detective" and run.run_type == "chain"]
-    [llm] = [run for run in runs if run.run_type == "llm"]
-    assert llm.parent_run_id == node.id
+    # The reply's model call sits under the detective node; the board's under update_board (S10).
+    [llm] = [run for run in runs if run.run_type == "llm" and run.parent_run_id == node.id]
+    assert "update_board" in {run.name for run in runs}
     assert llm.metadata["ls_model_name"] == "gpt-5.4-nano"
     assert llm.total_tokens and llm.total_tokens > 0
 
