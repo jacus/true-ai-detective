@@ -16,7 +16,8 @@ from detective.settings import settings
 
 Action = Literal["research", "ask", "consult", "conclude"]
 ACTIONS: dict[Action, str] = {
-    "research": "search the case file again for something specific that may answer the client",
+    "research": "look for something specific that may answer the client: in the case file or on the web "
+    "(search, web pages, archived pages, domain and DNS records)",
     "ask": "ask the client for information the case file lacks",
     "consult": "ask the client to confirm an assumption before going on",
     "conclude": "what has been found is enough to answer the client",

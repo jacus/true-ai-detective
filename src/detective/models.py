@@ -3,8 +3,10 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Identity, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -77,12 +79,15 @@ class EvidenceKind(enum.StrEnum):
     file = "file"  # photos are files too (image/*)
     link = "link"
     pin = "pin"
+    finding = "finding"  # found by the detective with a research tool (S13), never by the client
 
 
 class Evidence(Base):
-    """Something the client attached to a case: a file, a link or a map pin.
+    """Something in a case's locker: a file, link or map pin the client added, or a detective's finding.
 
-    A file's bytes live in the S3 bucket at `storage.object_key(case_id, id)`; this row describes it.
+    A file's bytes, and a finding's text, live in the S3 bucket at `storage.object_key(case_id, id)`; this
+    row describes them. A finding records its provenance: the tool, what it was asked, and the source address
+    (`url`, when the tool read one); `created_at` is when it was found.
     Row-level security: visible only if its case is (and `cases` is itself RLS-filtered).
     """
 
@@ -97,6 +102,11 @@ class Evidence(Base):
             "AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)",
             "pin_details",
         ),
+        CheckConstraint(
+            "kind <> 'finding' OR (tool IS NOT NULL AND tool_input IS NOT NULL AND content_type IS NOT NULL "
+            "AND size_bytes IS NOT NULL)",
+            "finding_details",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -104,12 +114,14 @@ class Evidence(Base):
     kind: Mapped[EvidenceKind] = mapped_column(
         Enum(EvidenceKind, native_enum=False, create_constraint=True, length=16, validate_strings=True)
     )
-    label: Mapped[str]  # file name, link address or pin label
+    label: Mapped[str]  # file name, link address, pin label or what the detective looked up
     content_type: Mapped[str | None]
     size_bytes: Mapped[int | None]
     url: Mapped[str | None]
     latitude: Mapped[float | None]
     longitude: Mapped[float | None]
+    tool: Mapped[str | None]  # a finding's research tool, e.g. "web_search"
+    tool_input: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # the tool call's arguments
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     facts: Mapped[list[Fact]] = relationship(lazy="selectin", order_by="Fact.seq")
 

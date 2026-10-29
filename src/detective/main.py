@@ -6,13 +6,10 @@ from ag_ui.encoder import EventEncoder
 from ag_ui_langgraph import LangGraphAgent
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from detective import auth, cases, evidence
 from detective.agent import builder
-from detective.db import get_db
-from detective.models import Case, Evidence, Fact
+from detective.models import Case
 from detective.settings import settings
 
 app = FastAPI(title="True AI Detective")
@@ -43,7 +40,6 @@ async def run_detective(
     run: RunAgentInput,
     request: Request,
     case: Annotated[Case, Depends(cases.current_case)],
-    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> StreamingResponse:
     """AG-UI endpoint: streams the detective's run as Server-Sent Events. Logged-in users only.
 
@@ -53,16 +49,6 @@ async def run_detective(
     # The case is the thread, and the state (e.g. the board) is the graph's alone: whatever state the browser
     # sends is dropped, so a client can't plant a board; the graph carries its own over from the checkpoint.
     run = run.model_copy(update={"thread_id": str(case.id), "state": {}})
-    found = await db.execute(
-        select(Fact.statement, Fact.location, Evidence.label)
-        .join(Evidence, Fact.evidence_id == Evidence.id)
-        .where(Fact.case_id == case.id)
-        .order_by(Fact.seq)
-    )
-    case_facts = [
-        f"{statement} (from {label}{f', {location}' if location else ''})"
-        for statement, location, label in found
-    ]
     encoder = EventEncoder(accept=request.headers.get("accept", "text/event-stream"))
 
     async def events():
@@ -75,7 +61,7 @@ async def run_detective(
                 name="detective",
                 description="True AI Detective",
                 graph=graph,  # ty: ignore[invalid-argument-type]
-                config={"configurable": {"case_id": str(case.id), "case_facts": case_facts}},
+                config={"configurable": {"case_id": str(case.id)}},
             )
             async for event in agent.run(run):
                 yield encoder.encode(event)

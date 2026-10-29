@@ -280,6 +280,51 @@ def test_deployed_detective_decides_its_next_step_with_jev() -> None:
     assert state["steps"][-1] in {run.name for run in runs}, "the reply node of the final step ran"
 
 
+def test_deployed_detective_researches_the_web_and_files_findings() -> None:
+    """Real JEV decides and real nano picks the tools, so a turn may not research: up to three tries."""
+    cookie = log_in()
+    started = datetime.now(UTC)
+    before = {
+        e["id"] for e in httpx.get(f"{API_URL}/cases/current/evidence", headers={"cookie": cookie}).json()
+    }
+
+    for _ in range(3):
+        question = (
+            f"Smoke research {uuid.uuid4().hex[:6]}: look it up on the web, I have nothing on it. "
+            "Who registered the domain example.com, when, and what does its home page say today?"
+        )
+        with httpx.stream(
+            "POST",
+            f"{API_URL}/agent",
+            json=run_input(question),
+            headers={"accept": "text/event-stream", "cookie": cookie},
+            timeout=240,
+        ) as response:
+            assert response.status_code == 200
+            events = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
+        assert events[-1]["type"] == "RUN_FINISHED", events[-1]
+        evidence = httpx.get(f"{API_URL}/cases/current/evidence", headers={"cookie": cookie}).json()
+        found = [e for e in evidence if e["kind"] == "finding" and e["id"] not in before]
+        if found:
+            break
+    else:
+        raise AssertionError("no web finding after 3 turns")
+
+    for finding in found:  # provenance: the tool, its input, when; and what was read from it
+        assert finding["tool"] in {
+            "web_search",
+            "read_web_page",
+            "read_archived_page",
+            "domain_registration",
+            "dns_records",
+        }
+        assert finding["tool_input"] and finding["created_at"]
+    _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
+    names = {run.name for run in runs}
+    assert {"research", "tools", "file_findings"} <= names, names
+    assert {f["tool"] for f in found} <= {run.name for run in runs if run.run_type == "tool"}
+
+
 def test_deployed_link_is_fetched_and_read() -> None:
     cookie = log_in()
     started = datetime.now(UTC)

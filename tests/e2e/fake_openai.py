@@ -21,6 +21,8 @@ received: list[dict] = []
 # Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, in a part of a
 # document (a fact quoting its first sentence), and the case board (a timeline entry per numbered fact, a lead
 # for the newest). Tests can queue other answers per schema name.
+# A request offering tools (the detective's research) is answered with tool calls: a search of the case file
+# for "the case" unless a test queued its own rounds of calls.
 PHOTO_SIGHTINGS = {
     "sightings": [
         {"kind": "text", "statement": 'A shop sign reads "PIEKARNIA NOWAK"'},
@@ -28,6 +30,8 @@ PHOTO_SIGHTINGS = {
     ]
 }
 queued: dict[str, list[str]] = {}
+tool_rounds: list[list[dict]] = []
+DEFAULT_ROUND = [{"name": "search_case_file", "args": {"query": "the case"}}]
 
 
 def first_sentence(text: str) -> str:
@@ -61,30 +65,46 @@ def reply_for(user_text: str) -> str:
     return f"Detective on the case. You said: {user_text}"
 
 
+def completion(payload: dict, message: dict, finish_reason: str) -> dict:
+    return {
+        "id": "chatcmpl-fake",
+        "object": "chat.completion",
+        "created": 0,
+        "model": payload["model"],
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+    }
+
+
+def tool_calls(calls: list[dict]) -> list[dict]:
+    return [
+        {
+            "id": f"call_{n}",
+            "type": "function",
+            "function": {"name": call["name"], "arguments": json.dumps(call["args"])},
+        }
+        for n, call in enumerate(calls)
+    ]
+
+
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(request: Request) -> StreamingResponse | dict:
     payload = await request.json()
     received.append(payload)
+    if payload.get("tools"):
+        calls = tool_rounds.pop(0) if tool_rounds else DEFAULT_ROUND
+        message = {"role": "assistant", "content": None, "tool_calls": tool_calls(calls)}
+        return completion(payload, message, "tool_calls")
     if not payload.get("stream"):
         schema = payload["response_format"]["json_schema"]["name"]
         answers = {
             "PhotoFacts": lambda: PHOTO_SIGHTINGS,
             "DocumentFacts": lambda: document_facts(payload),
-            "Search": lambda: {"query": "the case"},
         }
         default = answers.get(schema, lambda: case_board(payload))()
         waiting = queued.get(schema, [])
         content = waiting.pop(0) if waiting else json.dumps(default)
-        return {
-            "id": "chatcmpl-fake",
-            "object": "chat.completion",
-            "created": 0,
-            "model": payload["model"],
-            "choices": [
-                {"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
-            ],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
-        }
+        return completion(payload, {"role": "assistant", "content": content}, "stop")
     user_text = next(m["content"] for m in reversed(payload["messages"]) if m["role"] == "user")
     words = reply_for(user_text).split(" ")
 
@@ -190,6 +210,12 @@ async def decide(request: Request) -> dict:
 async def queue_decisions(request: Request) -> None:
     """The next decisions, e.g. [{"choice": "research"}, {"choice": "conclude", "probabilities": {...}}]."""
     decisions.extend(await request.json())
+
+
+@app.post("/tool_calls")
+async def queue_tool_calls(request: Request) -> None:
+    """The next research rounds, each a list of calls, e.g. [[{"name": "web_search", "args": {...}}]]."""
+    tool_rounds.extend(await request.json())
 
 
 @app.post("/answers/{schema}")

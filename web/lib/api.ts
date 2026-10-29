@@ -64,13 +64,17 @@ export async function getCaseMessages(): Promise<Message[]> {
 
 export type Evidence = {
   id: string;
-  kind: "file" | "link" | "pin";
+  /** A finding is what the detective found researching (S13), never added by the client. */
+  kind: "file" | "link" | "pin" | "finding";
   label: string;
   content_type: string | null;
   size_bytes: number | null;
   url: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** A finding's provenance: the research tool and what it was asked (`url` is its source, if one). */
+  tool: string | null;
+  tool_input: Record<string, unknown> | null;
   created_at: string;
   /** What the api learned from it (photos: EXIF metadata and what the vision model saw). */
   facts: Fact[];

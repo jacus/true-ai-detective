@@ -28,6 +28,14 @@ services:
     volumes:
       - s3data:/data
 
+  # The detective's web search (S13), same build as on Railway. JSON API on http://localhost:8888/search
+  searxng:
+    build: searxng
+    environment:
+      SEARXNG_SECRET: local-only-secret
+    ports:
+      - "8888:8080"
+
 volumes:
   pgdata:
   s3data:

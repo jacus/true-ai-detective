@@ -235,6 +235,8 @@ def app_env(
         "AI_GATEWAY_API_KEY": "gw-fake",
         **S3_ENV,
         "AWS_ENDPOINT_URL": s3_endpoint,
+        # No web search outside the research tests (`recorded_api`): a port nothing listens on.
+        "SEARX_URL": "http://127.0.0.1:9",
         # A dead proxy for all but this machine: tests never reach the internet (e.g. link fetching).
         # httpx, boto3 and the OpenAI/LangSmith SDKs all honour these standard variables.
         "HTTP_PROXY": "http://127.0.0.1:9",
@@ -266,6 +268,36 @@ def api(database_url: str, fake_openai: str, s3_endpoint: str) -> Iterator[str]:
     _stop(proc)
 
 
+CASSETTES = Path(__file__).with_name("cassettes")
+LOCAL_SEARXNG = "http://127.0.0.1:8888"  # compose.yaml's SearXNG, only ever reached while recording
+
+
+@pytest.fixture
+def recorded_api(database_url: str, fake_openai: str, s3_endpoint: str) -> Iterator[str]:
+    """The api with the web replayed from tests/e2e/cassettes/research.yaml (see recorded_api.py).
+
+    `just record-research` re-records it from the real web and compose's SearXNG
+    (VCR_RECORD_MODE=new_episodes): then, and only then, the api gets no dead proxy.
+    """
+    port = _free_port()
+    env = app_env(database_url, fake_openai, s3_endpoint) | {"SEARX_URL": LOCAL_SEARXNG}
+    if os.environ.get("VCR_RECORD_MODE", "none") != "none":
+        env = {name: value for name, value in env.items() if name not in ("HTTP_PROXY", "HTTPS_PROXY")}
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("recorded_api.py")),
+            str(CASSETTES / "research.yaml"),
+            str(port),
+        ],
+        env=env,
+    )
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_until_up(proc, f"{base_url}/docs", "recorded API")
+    yield base_url
+    _stop(proc)
+
+
 WEB_DIR = Path(__file__).parents[2] / "web"
 
 
@@ -278,6 +310,16 @@ def web_build() -> None:
 @pytest.fixture
 def web(web_build: None, api: str) -> Iterator[str]:
     """The real web app (`next start`), relaying the chat to the real api."""
+    yield from start_web(api)
+
+
+@pytest.fixture
+def recorded_web(web_build: None, recorded_api: str) -> Iterator[str]:
+    """The real web app in front of the api whose web research is replayed (`recorded_api`)."""
+    yield from start_web(recorded_api)
+
+
+def start_web(api: str) -> Iterator[str]:
     port = _free_port()
     # The Next binary itself, not `npm run start`: npm would leave next-server orphaned on terminate.
     proc = subprocess.Popen(

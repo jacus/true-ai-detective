@@ -11,7 +11,7 @@ import {
 } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Board, Evidence, User } from "@/lib/api";
 import { CaseBoard, type LastStep } from "./case-board";
 import styles from "./evidence.module.css";
@@ -102,7 +102,7 @@ function CaseView({
   // the agent, so the board we show and the refresh we start are always the same agent object.
   const { agent } = useAgent({
     agentId: "detective",
-    updates: [UseAgentUpdate.OnStateChanged],
+    updates: [UseAgentUpdate.OnStateChanged, UseAgentUpdate.OnRunStatusChanged],
   });
   const { copilotkit } = useCopilotKit();
   // Until the first run on this page, the board is the one saved with the case.
@@ -122,6 +122,16 @@ function CaseView({
   useEffect(() => {
     latestAgent.current = agent;
   }, [agent]);
+
+  // A run that researched may have filed findings (S13): when it ends, the locker lists itself again.
+  const [lockerVersion, setLockerVersion] = useState(0);
+  const wasRunning = useRef(false);
+  const researched = agent.state?.steps?.includes("research") ?? false;
+  useEffect(() => {
+    if (wasRunning.current && !agent.isRunning && researched)
+      setLockerVersion((version) => version + 1);
+    wasRunning.current = agent.isRunning;
+  }, [agent.isRunning, researched]);
 
   // New evidence: a run without a new message, so the graph only rebuilds the board (and streams it here).
   async function refreshBoard() {
@@ -146,6 +156,7 @@ function CaseView({
       </div>
       <EvidenceLocker
         initialEvidence={initialEvidence}
+        version={lockerVersion}
         onAdded={refreshBoard}
       />
     </div>
