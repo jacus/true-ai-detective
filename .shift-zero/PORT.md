@@ -17,7 +17,7 @@ Ported: 2026-10-28 by Claude Code (claude-opus-5-5)
 - e2e:      `just test` (each e2e session starts throwaway pgvector + RustFS containers and real API processes)
 - static:   `just check` (ruff lint, ruff format check, ty, biome, tsc)
 - scoped:   `just test tests/e2e/test_health.py` · `just test -k <name>` · `just test path::test_name`
-- smoke:    `just smoke https://<your-api>.up.railway.app https://<your-web>.up.railway.app` (deployed env; logs in as the smoke client from `.env` SMOKE_EMAIL/SMOKE_PASSWORD and resets its case first; real `gpt-5.4-nano` calls (chat, known photo, the 2-page witness PDF, example.com, one via a real browser; cents at most); reads the run's trace back from LangSmith EU with `langsmith.Client` (key from `.env`, endpoint/project set by the recipe); Railway auto-deploys `main`, build+healthcheck ~4–5 min)
+- smoke:    `just smoke` (deployed env at `DEPLOYED_API_URL` / `DEPLOYED_WEB_URL` from `.env`, or `just smoke <api-url> <web-url>`; logs in as the smoke client from `.env` SMOKE_EMAIL/SMOKE_PASSWORD and resets its case first; real `gpt-5.4-nano` calls (chat, known photo, the 2-page witness PDF, example.com, one via a real browser; cents at most); reads the run's trace back from LangSmith EU with `langsmith.Client` (key from `.env`, endpoint/project set by the recipe); Railway auto-deploys `main`, build+healthcheck ~4–5 min)
 - remote:   `just invite-prod …` / `ssh railway-api '<cmd>'` (key + config set up via `railway ssh keys add` and `railway ssh config -s api`)
 - infra:    `just infra-plan` (exit 0 = Railway matches `.railway/railway.ts`; apply with `railway config apply`)
 - reindex:  `just reindex` / `just reindex-prod` (rebuild the case memory; e2e runs the CLI with `app_env(...)` + `MIGRATIONS_DATABASE_URL`)

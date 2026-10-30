@@ -33,7 +33,7 @@ against the working tree and blocks the reply if it is stale or failing.
 - **Never edit, skip or loosen an existing test to get green** without the owner's agreement. When behaviour
   changes on purpose, say exactly which test changed and why; record weakened tests in `tests_weakened`.
 - Reply with the verdict line first: `SHIFT ZERO: VERIFIED | L0 — …`.
-- Finish a story with a deploy and `just smoke <api-url> <web-url>` against Railway.
+- Finish a story with a deploy and `just smoke` against Railway (addresses from `.env`).
 
 ## Commands
 

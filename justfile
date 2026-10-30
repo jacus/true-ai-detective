@@ -41,7 +41,8 @@ invite email name role="client":
     uv run detective invite {{email}} --name "{{name}}" --role {{role}}
 
 # Invite someone on Railway (runs the CLI inside the api container over SSH; needs `railway ssh config -s api`)
-invite-prod email name role="client" web_url="https://<your-web>.up.railway.app":
+invite-prod email name role="client" web_url=env("DEPLOYED_WEB_URL", ""):
+    @test -n "{{web_url}}" || { echo "Set DEPLOYED_WEB_URL in .env (see .env.example) or pass it"; exit 1; }
     ssh -o BatchMode=yes railway-api 'detective invite {{email}} --name "{{name}}" --role {{role}} --base-url {{web_url}}' 
 
 # Rebuild the case memory (RAG) from facts and stored documents, locally or on Railway
@@ -65,8 +66,10 @@ record-research:
     rm -f tests/e2e/cassettes/research.yaml
     VCR_RECORD_MODE=new_episodes uv run pytest tests/e2e/test_research.py -q
 
-# Smoke-test a deployed environment (real nano calls), e.g. `just smoke https://api-… https://web-…`
-smoke api_url web_url:
+# Smoke-test a deployed environment (real nano calls): `just smoke`, or `just smoke https://api-… https://web-…`
+smoke api_url=env("DEPLOYED_API_URL", "") web_url=env("DEPLOYED_WEB_URL", ""):
+    @test -n "{{api_url}}" || { echo "Set DEPLOYED_API_URL in .env (see .env.example) or pass it"; exit 1; }
+    @test -n "{{web_url}}" || { echo "Set DEPLOYED_WEB_URL in .env (see .env.example) or pass it"; exit 1; }
     SMOKE_API_URL={{api_url}} SMOKE_WEB_URL={{web_url}} \
     LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com LANGSMITH_PROJECT=true-ai-detective \
     uv run pytest tests/smoke -q
