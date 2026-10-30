@@ -11,9 +11,13 @@ real code. The image search and the pictures were recorded once from the real we
 
 import io
 import json
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import httpx
+import pytest
 from conftest import _stop, chat_request, run_agent, sign_up, start_api, unique_email
 from PIL import Image
 from test_evidence import PASSWORD, PHOTO, listed, upload
@@ -178,3 +182,47 @@ def test_the_detective_looks_again_at_the_clients_own_photo_with_the_configured_
         assert listed(api, bob) == []
     finally:
         _stop(proc)
+
+
+@pytest.fixture
+def busy_site() -> Iterator[tuple[str, list[str]]]:
+    """A site that first says "too many requests, retry after a second", then serves the picture; it notes
+    each request's user agent."""
+    asked: list[str] = []
+
+    class Busy(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            asked.append(self.headers["user-agent"])
+            if len(asked) == 1:
+                self.send_response(429)
+                self.send_header("retry-after", "1")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("content-type", "image/png")
+            self.end_headers()
+            self.wfile.write(PHOTO)
+
+        def log_message(self, format: str, *args: Any) -> None:  # quiet
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Busy)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}/car.png", asked
+    server.shutdown()
+
+
+def test_a_busy_site_asking_for_a_short_wait_is_waited_out(
+    api: str, database_url: str, fake_openai: str, busy_site: tuple[str, list[str]]
+) -> None:
+    picture, asked = busy_site
+    cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    queue_tool_calls(fake_openai, [examine(picture)])
+
+    run_agent(api, cookie, QUESTION)
+
+    assert len(asked) == 2, "asked again after the wait"
+    assert asked[0] == "TrueAIDetective/1.0 (https://github.com/jacus/true-ai-detective)"  # who is asking
+    [kept] = [item for item in listed(api, cookie) if item["tool"] == "examine_image"]
+    assert kept["url"] == picture and kept["content_type"] == "image/png"

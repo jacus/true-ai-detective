@@ -18,6 +18,7 @@ detective's research picks, including private and internal addresses (SSRF). Ref
 link-local targets, re-checked per redirect.
 """
 
+import asyncio
 import io
 import operator
 import uuid
@@ -45,6 +46,9 @@ MAX_ATTEMPTS = 2
 MAX_CHUNKS = 100  # ~400k characters; more is noted as a fact, not read
 MAX_PARALLEL_CALLS = 8  # LangGraph's max_concurrency: how many chunks are read at once
 PAGE_BYTES = 5 * 1024 * 1024
+# Who is asking, with a way to find out more: sites such as Wikimedia limit anonymous-looking bots harder.
+USER_AGENT = "TrueAIDetective/1.0 (https://github.com/jacus/true-ai-detective)"
+MAX_RETRY_AFTER = 15  # seconds: a "too many requests" asking for a short wait is waited out, once
 splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
 
 Readable = Literal[
@@ -181,10 +185,17 @@ def read_document(state: EvidenceAnalysis) -> dict:
 
 
 async def get_page(url: str, **request: Any) -> httpx.Response:
-    """GET a web page (or API), following redirects; raises httpx.HTTPError when it can't be read."""
-    headers = {"user-agent": "TrueAIDetective/1.0", **request.pop("headers", {})}
+    """GET a web page (or API), following redirects; raises httpx.HTTPError when it can't be read.
+
+    A 429 Too Many Requests whose Retry-After asks for a few seconds is waited out once: Railway's addresses
+    are shared, so busy sites (e.g. Wikimedia's images) sometimes refuse them for a moment."""
+    headers = {"user-agent": USER_AGENT, **request.pop("headers", {})}
     async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
         response = await client.get(url, headers=headers, **request)
+        wait = response.headers.get("retry-after", "")
+        if response.status_code == 429 and wait.isdigit() and int(wait) <= MAX_RETRY_AFTER:
+            await asyncio.sleep(int(wait))
+            response = await client.get(url, headers=headers, **request)
         response.raise_for_status()
     return response
 
