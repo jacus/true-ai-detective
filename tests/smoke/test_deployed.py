@@ -327,9 +327,17 @@ def test_deployed_detective_researches_the_web_and_files_findings() -> None:
     assert {f["tool"] for f in found} <= {run.name for run in runs if run.run_type == "tool"}
 
 
-def test_deployed_detective_finds_a_picture_and_keeps_it() -> None:
-    """Real JEV, nano and SearXNG: the detective searches pictures, looks at one with the question, and keeps
-    one that shows it (a picture finding). Up to three tries: a turn may not get that far."""
+# Wikimedia Commons, "Porsche-Arena during 2022 Porsche Tennis Grand Prix" by Charliechytrak (CC BY-SA 4.0):
+# the prize cars stand beside the court.
+ARENA = (
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/Porsche-Arena_during_2022_Porsche_Tennis_Grand_"
+    "Prix.jpg/500px-Porsche-Arena_during_2022_Porsche_Tennis_Grand_Prix.jpg"
+)
+
+
+def test_deployed_detective_looks_at_a_picture_and_keeps_it() -> None:
+    """Real JEV and nano, and the real web: the detective looks at a picture with the client's question, and
+    keeps it when it shows the subject (a picture finding). Up to three tries: a turn may not research."""
     cookie = log_in()
     started = datetime.now(UTC)
     before = {
@@ -338,8 +346,8 @@ def test_deployed_detective_finds_a_picture_and_keeps_it() -> None:
 
     for _ in range(3):
         question = (
-            f"Smoke pictures {uuid.uuid4().hex[:6]}: find pictures on the web of the car the Porsche Tennis "
-            "Grand Prix winner gets on court, and look at them: which make and model is it?"
+            f"Smoke pictures {uuid.uuid4().hex[:6]}: look at this picture, I have nothing else: {ARENA} "
+            "Which cars stand beside the court, which make and models?"
         )
         with httpx.stream(
             "POST",

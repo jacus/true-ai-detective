@@ -178,8 +178,12 @@ def next_step(state: DetectiveState) -> Action:
 
 
 async def research_step(state: DetectiveState) -> dict:
-    """The chat model picks the tools to call and their arguments; `tools` (a ToolNode) runs them."""
-    call = await researcher.ainvoke([SystemMessage(f"{PERSONA} {RESEARCH}"), HumanMessage(situation(state))])
+    """The chat model picks the tools to call and their arguments; `tools` (a ToolNode) runs them.
+
+    It sees this turn's earlier calls and their results as they are (the usual tool-calling exchange), so a
+    next round can build on them, e.g. look at a picture an image search found."""
+    situation_now = [SystemMessage(f"{PERSONA} {RESEARCH}"), HumanMessage(situation(state))]
+    call = await researcher.ainvoke([*situation_now, *state.get("research", [])])
     return {"research": [call], "searches": state.get("searches", 0) + 1}
 
 
