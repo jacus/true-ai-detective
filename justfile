@@ -62,7 +62,8 @@ test *args:
 
 # Re-record the web the research tests replay (tests/e2e/cassettes/research.yaml): real sites, local SearXNG
 record-research:
-    docker compose up -d --wait searxng
+    # SearXNG keeps its settings in a volume: a fresh one, so the recording uses searxng/settings.yml as it is
+    docker compose up -d --wait --build --force-recreate --renew-anon-volumes searxng
     rm -f tests/e2e/cassettes/research.yaml
     VCR_RECORD_MODE=new_episodes uv run pytest tests/e2e/test_research.py tests/e2e/test_image_research.py -q
 

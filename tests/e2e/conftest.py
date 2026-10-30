@@ -225,7 +225,6 @@ def app_env(
     inherited = {name: value for name, value in os.environ.items() if not name.startswith("LANGSMITH_")}
     return {
         **inherited,
-        **(env or {}),
         "DATABASE_URL": database_url,
         # OpenAI SDK's own settings: route model calls to the fake server.
         "OPENAI_BASE_URL": f"{openai_base_url}/v1",
@@ -242,6 +241,7 @@ def app_env(
         "HTTP_PROXY": "http://127.0.0.1:9",
         "HTTPS_PROXY": "http://127.0.0.1:9",
         "NO_PROXY": "127.0.0.1,localhost",
+        **(env or {}),  # last: a test's own variables win (e.g. SEARX_URL for a fake search service)
     }
 
 

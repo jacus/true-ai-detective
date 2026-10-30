@@ -1,17 +1,24 @@
 """Web research (S13): the detective calls tools, and what it finds on the web is filed in the evidence locker
-with its provenance, read into cited facts, recalled later and placed on the board.
+with its provenance, read into cited facts, recalled later and placed on the board. A search's list of
+results isn't filed (S13d): the pages read are.
 
 The model's tool calls are scripted (the fake OpenAI server); the tools are real code making real HTTP
 requests, answered from responses recorded once from the real web and a real SearXNG
-(tests/e2e/cassettes/research.yaml, `just record-research`).
+(tests/e2e/cassettes/research.yaml, `just record-research`), or by a fake SearXNG whose engines didn't answer.
 """
 
+import json
 import subprocess
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import psycopg
-from conftest import app_env, chat_request, run_agent, sign_up, unique_email
+import pytest
+from conftest import _stop, app_env, chat_request, run_agent, sign_up, start_api, unique_email
 from test_evidence import PASSWORD, listed
 from test_loop import final_state, queue, queue_tool_calls, received_so_far
 from test_memory import case_of, memory_rows, recalled
@@ -65,17 +72,22 @@ def test_the_detective_researches_the_web_and_files_what_it_found(
     assert "tool_choice" not in asked[0]
     assert asked[0]["response_format"]["json_schema"]["name"] == "ResearchReport"
     assert len(asked) == 2, "one round of tools, then the report"
-    # Each web result is filed with its provenance: the tool, what it was asked, its source, when.
+    # Each web result is filed with its provenance: the tool, what it was asked, its source, when. The
+    # search's list of results isn't: it is what to read next, and the agent had it.
     filed = findings(recorded_api, cookie)
-    assert sorted(filed) == sorted(call["name"] for call in EXAMPLE_COM)
-    for call in EXAMPLE_COM:
+    read = [call for call in EXAMPLE_COM if call["name"] != "web_search"]
+    assert sorted(filed) == sorted(call["name"] for call in read)
+    for call in read:
         finding = filed[call["name"]]
         assert finding["tool_input"] == call["args"]
         assert finding["created_at"] and finding["facts"], finding  # read into facts like any document
     assert filed["read_web_page"]["url"] == "https://example.com/"
     assert filed["read_archived_page"]["url"].startswith("https://web.archive.org/web/2015")
     assert filed["domain_registration"]["url"] == "https://rdap.verisign.com/com/v1/domain/example.com"
-    assert filed["web_search"]["url"] is None  # many sources: each result names its own
+    [calls] = [m["tool_calls"] for m in asked[1]["messages"] if m.get("tool_calls")]
+    [search] = [call["id"] for call in calls if call["function"]["name"] == "web_search"]
+    [results] = [m["content"] for m in asked[1]["messages"] if m.get("tool_call_id") == search]
+    assert "\nhttps://" in results, "the agent saw the search's results"
     # The answer is written from what was found, each line naming the finding it came from.
     system = chat_request(fake_openai)["messages"][0]["content"]
     assert REGISTRAR in system and IN_2015 in system and '"v=spf1 -all"' in system
@@ -169,3 +181,65 @@ def test_reindex_reads_findings_again(
     subprocess.run(["detective", "reindex"], env=env, check=True, capture_output=True)
 
     assert indexed > 5 and memory_rows(owner_database_url, case_id) == indexed  # facts and text, back again
+
+
+@pytest.fixture
+def blocked_searxng() -> Iterator[tuple[str, list[dict[str, list[str]]]]]:
+    """A SearXNG whose engines all failed, as from Railway's shared addresses: no results, and which engines
+    didn't answer and why. It notes each query."""
+    asked: list[dict[str, list[str]]] = []
+
+    class Blocked(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            asked.append(parse_qs(urlparse(self.path).query))
+            down = [["brave", "too many requests"], ["duckduckgo", "CAPTCHA"]]
+            body = json.dumps({"query": "", "results": [], "unresponsive_engines": down}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: Any) -> None:  # quiet
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Blocked)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}", asked
+    server.shutdown()
+
+
+def test_a_search_says_when_the_engines_didnt_answer(
+    database_url: str,
+    fake_openai: str,
+    s3_endpoint: str,
+    blocked_searxng: tuple[str, list[dict[str, list[str]]]],
+) -> None:
+    searxng, asked = blocked_searxng
+    proc, api = start_api(database_url, fake_openai, s3_endpoint, env={"SEARX_URL": searxng})
+    try:
+        cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+        queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+        queue_tool_calls(
+            fake_openai,
+            [
+                {"name": "web_search", "args": {"query": "Wuhan Open car"}},
+                {"name": "image_search", "args": {"query": "Wuhan Open car"}},
+            ],
+        )
+
+        run_agent(api, cookie, "Which car was on court at the Wuhan Open?")
+        filed = findings(api, cookie)
+    finally:
+        _stop(proc)
+
+    # Web search asks the news engines too (they answer from Railway when the general ones are blocked).
+    assert sorted(query["categories"][0] for query in asked) == ["general,news", "images"]
+    # Nothing found, and why: rewording won't help when the engines didn't answer.
+    system = chat_request(fake_openai)["messages"][0]["content"]
+    down = (
+        "the search engines didn't answer (brave (too many requests), duckduckgo (CAPTCHA)). "
+        "Rewording won't help"
+    )
+    assert f"Nothing from web_search: Wuhan Open car (No web results for 'Wuhan Open car': {down}" in system
+    assert f"Nothing from image_search: Wuhan Open car (No pictures for 'Wuhan Open car': {down}" in system
+    assert filed == {}

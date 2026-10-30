@@ -78,7 +78,9 @@ class PhotoAnalysis(TypedDict):
 
 INSTRUCTIONS = (
     "You examine photos for a private investigator. Report only what is actually visible: "
-    "readable text, notable objects or people, and hints about the place. Never guess identities."
+    "readable text, notable objects or people, and hints about the place. Always say what kind of place it "
+    "is, in a place sighting (indoors or outdoors; e.g. a tennis court, a showroom, a street). Never guess "
+    "identities."
 )
 # Not streamed, like every structured answer: none of it is chat (see evidence_analysis.extractor).
 vision = init_chat_model(settings.vision_model, disable_streaming=True).with_structured_output(PhotoFacts)
@@ -114,7 +116,7 @@ async def look_at_photo(state: PhotoAnalysis) -> dict:
         SystemMessage(INSTRUCTIONS),
         HumanMessage(
             content=[
-                {"type": "text", "text": "What does this photo show?"},
+                {"type": "text", "text": "What does this photo show, and where is it?"},
                 {
                     "type": "image",
                     "base64": base64.b64encode(state["content"]).decode(),

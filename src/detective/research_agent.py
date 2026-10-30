@@ -5,6 +5,8 @@ It is LangChain's own agent (`create_agent`: a model and its tools in a loop, it
 up with middleware, LangChain's hooks around the loop:
 
     TodoListMiddleware        adds a `write_todos` tool: the agent writes its plan and ticks it off (`todos`)
+    LookFirst                 when the case has photos no one has looked at yet, its first move is to look
+                              (the client's photo is the best evidence; a first glance noted on upload isn't)
     show_plan                 sends each plan to the browser as it is written (an AG-UI custom event)
     FileFindings              files what each web tool finds in the evidence locker, as it arrives (`found`)
     ModelCallLimitMiddleware  the budget: at most MODEL_CALLS model calls per run, then it stops
@@ -25,6 +27,8 @@ from langchain.agents import AgentState, create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelCallLimitMiddleware,
+    ModelRequest,
+    ModelResponse,
     TodoListMiddleware,
     ToolCallLimitMiddleware,
     ToolCallRequest,
@@ -32,7 +36,7 @@ from langchain.agents.middleware import (
 )
 from langchain.chat_models import init_chat_model
 from langchain_core.callbacks import adispatch_custom_event
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
@@ -47,12 +51,16 @@ PLAN_EVENT = "research_plan"  # the custom event carrying the plan to the browse
 
 INSTRUCTIONS = (
     "You research for a private investigator. You are given the conversation with the client and what is "
-    "known so far; find out what the client's latest message needs. Search the case file first for what the "
-    "client may have given you; use the web for what they couldn't. To tell what something in a photo is, "
-    "look at the photo with a question, find other pictures of the same thing or event, and look at those. "
-    "For anything that takes more than one or two steps, plan the steps with write_todos and keep the plan "
-    "up to date. Stop when you can answer, or when more research won't help, and report what you found, "
-    "naming the source (file, page, picture) of each point."
+    "known so far; find out what the client's latest message needs, by yourself: the client expects you to "
+    "dig, not to ask them. Search the case file for what the client may have given you; use the web for what "
+    "they couldn't. What the client says about their case outweighs earlier notes. To tell what something "
+    "in a photo is, look at the photo with a question, find out what event or place it is from, find other "
+    "pictures and articles about the same thing, read the pages and look at the pictures (a search result "
+    "list is only a lead). Never repeat a search already tried; when the search engines didn't answer, "
+    "rewording won't help: work with the other tools and what you already have. For anything that takes "
+    "more than one or two steps, plan the steps with write_todos and keep the plan up to date. Stop when you "
+    "can answer, or when more research won't help, and report what you found, naming the source (file, "
+    "page, picture) of each point."
 )
 
 
@@ -61,7 +69,9 @@ class ResearchReport(BaseModel):
 
     answer: str = Field(description="What was found, naming the source (file, page, picture) of each point")
     confidence: Literal["low", "medium", "high"] = Field(description="How sure the answer is")
-    open_questions: list[str] = Field(description="What is still unknown and worth finding out")
+    open_questions: list[str] = Field(
+        description="What is still unknown and worth researching next (by you, not by the client)"
+    )
 
 
 class FindingsState(AgentState):
@@ -92,6 +102,38 @@ class FileFindings(AgentMiddleware[FindingsState, CaseContext]):
         return Command(update={"messages": [result], "found": lines})
 
 
+class PhotosState(AgentState):
+    """The agent's state, plus the case's photos no one has looked at yet with a question (given at start)."""
+
+    unexamined: NotRequired[list[str]]
+
+
+class LookFirst(AgentMiddleware[PhotosState, CaseContext]):
+    """While the case has photos no one has looked at with a question, the model's first call must look at one
+    (`examine_image`): a first glance noted on upload, by a small model, can be wrong, and the agent tended to
+    trust it and search for what it said instead."""
+
+    state_schema = PhotosState
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[CaseContext],
+        handler: Callable[[ModelRequest[CaseContext]], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        looked = any(
+            call["name"] == research.examine_image.name
+            for message in request.state["messages"]
+            if isinstance(message, AIMessage)
+            for call in message.tool_calls
+        )
+        if request.state.get("unexamined") and not looked:
+            # Forced by name, in the model settings: with the report as OpenAI structured output
+            # (ProviderStrategy), create_agent binds the tools with those but without `request.tool_choice`.
+            settings = {**request.model_settings, "tool_choice": research.examine_image.name}
+            return await handler(request.override(model_settings=settings))
+        return await handler(request)
+
+
 @wrap_tool_call
 async def show_plan(
     request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]]
@@ -113,6 +155,7 @@ agent = create_agent(  # ty: ignore[no-matching-overload]
     system_prompt=INSTRUCTIONS,
     middleware=[
         TodoListMiddleware(),
+        LookFirst(),
         show_plan,
         FileFindings(),
         ModelCallLimitMiddleware(run_limit=MODEL_CALLS, exit_behavior="end"),

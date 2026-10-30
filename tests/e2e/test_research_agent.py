@@ -1,12 +1,14 @@
 """The research agent (S13c): research is LangChain's `create_agent` with middleware. It plans (write_todos),
 calls tools round after round, files what it finds as it goes, stays within its budget, and reports; the
 detective decides and answers from the report. The plan reaches the browser while it is written (an AG-UI
-CUSTOM event) and stays in the state.
+CUSTOM event) and stays in the state. While the case has photos no one has looked at with a question, the
+agent looks at one first; what research tried is kept across turns, so later rounds don't repeat it (S13d).
 
 The agent's model calls are scripted (the fake OpenAI server): queued rounds of tool calls, then its report.
 """
 
 import json
+import uuid
 
 import httpx
 from conftest import chat_request, run_agent, sign_up, unique_email
@@ -111,3 +113,56 @@ def test_at_most_six_pictures_per_research_run(api: str, database_url: str, fake
     *_, report_request = agent_requests(fake_openai, since)
     refused = [m for m in report_request["messages"] if m["role"] == "tool" and "limit" in m["content"]]
     assert len(refused) == 1, [m["content"] for m in report_request["messages"] if m["role"] == "tool"]
+
+
+def first_agent_request(fake_openai: str, since: int) -> dict:
+    return agent_requests(fake_openai, since)[0]
+
+
+def test_the_agent_looks_at_the_clients_photo_first(api: str, database_url: str, fake_openai: str) -> None:
+    cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+    upload(api, cookie, "final.png", PHOTO, "image/png")
+    thread = str(uuid.uuid4())
+
+    since = received_so_far(fake_openai)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    queue_tool_calls(fake_openai, [examine("final.png")])
+    run_agent(api, cookie, "Which car is on court?", thread_id=thread)
+    first = first_agent_request(fake_openai, since)
+    since = received_so_far(fake_openai)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    run_agent(api, cookie, "And who won the final?", thread_id=thread)
+    later = first_agent_request(fake_openai, since)
+
+    # No one had looked at the photo with a question: the agent is told so, and its first move is to look.
+    assert first["tool_choice"] == {"type": "function", "function": {"name": "examine_image"}}
+    [situation] = [m["content"] for m in first["messages"] if m["role"] == "user"]
+    assert "The client's photos: final.png (not looked at with a question yet)." in situation
+    assert "is a first glance by a small model" in situation
+    # Once it has looked (in an earlier turn too), the agent chooses freely.
+    assert "tool_choice" not in later
+    [situation] = [m["content"] for m in later["messages"] if m["role"] == "user"]
+    assert "The client's photos: final.png." in situation
+
+
+def test_what_research_tried_is_kept_for_later_turns(api: str, database_url: str, fake_openai: str) -> None:
+    cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+    thread = str(uuid.uuid4())
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    queue_tool_calls(fake_openai, [{"name": "web_search", "args": {"query": "Wuhan Open car"}}])
+    run_agent(api, cookie, "Which car was on court at the Wuhan Open?", thread_id=thread)  # no web here
+
+    since = received_so_far(fake_openai)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    run_agent(api, cookie, "Try harder.", thread_id=thread)
+
+    # The next turn's research (and the decision model) are told what was tried, and what came of it.
+    [situation] = [
+        m["content"] for m in first_agent_request(fake_openai, since)["messages"] if m["role"] == "user"
+    ]
+    tried = situation.split("Research already tried (don't repeat it; what it found is in the case file):\n")[
+        1
+    ]
+    assert tried.startswith("- web_search: Wuhan Open car (nothing: Couldn't get http://127.0.0.1:9/search")
+    [decided, *_] = decision_requests(fake_openai, since)
+    assert "- web_search: Wuhan Open car (nothing: " in decided["input"]

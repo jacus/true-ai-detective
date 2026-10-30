@@ -62,6 +62,11 @@ against the working tree and blocks the reply if it is stale or failing.
 - Anything run inside a node is a subagent to ag-ui-langgraph: the browser gets the detective's state only,
   replaced at each inner step. Live progress from inside goes as a custom event (`adispatch_custom_event`),
   kept in its own React state.
+- `create_agent` with a structured report (OpenAI structured output) ignores `request.tool_choice` from
+  middleware: force a tool through `request.override(model_settings={"tool_choice": name})`.
+- From Railway's shared addresses SearXNG's default general engines are rate-limited or CAPTCHA'd, and
+  `unresponsive_engines` says so; the news category still answers. Compose keeps SearXNG's settings in an
+  anonymous volume: `--renew-anon-volumes` to pick up `searxng/settings.yml` changes (`just record-research` does).
 - Row-level security for library connections: `db.acting_user` ContextVar + the engine `begin` hook.
 - langchain-postgres: a fresh `HybridSearchConfig` per search (0.0.19 reuses the first query); no HNSW
   index for per-case filtered search.
