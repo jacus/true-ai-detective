@@ -107,6 +107,14 @@ def test_the_detective_keeps_web_pictures_that_show_what_it_looks_for(
     system = chat_request(fake_openai)["messages"][0]["content"]
     assert f"{CARS['answer']} (from examine_image: {ARENA}, {QUESTION})" in system
     assert f"{PLAYER} doesn't show it: {NO_CAR['answer']}" in system
+    # The reply knows what research can do and what it did, so it doesn't guess it can't look at pictures.
+    assert "looking at a picture (a photo in the case file or one on the web) with a question" in system
+    done = system.split("What you researched for the latest message", 1)[1].split("\n\n", 1)[0]
+    assert done.splitlines()[1:] == [
+        "- image_search: Porsche Tennis Grand Prix winner car",
+        f"- examine_image: {ARENA}, {QUESTION}",
+        f"- examine_image: {PLAYER}, {QUESTION}",
+    ]
 
 
 def test_something_that_isnt_a_picture_is_reported_and_nothing_is_kept(

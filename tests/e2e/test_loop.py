@@ -76,6 +76,7 @@ def test_ask_and_consult_reply_with_their_own_instruction(
     consult_prompt = chat_request(fake_openai)["messages"][0]["content"]
 
     assert asked["steps"] == ["ask"] and ASK in ask_prompt
+    assert "You did no research for the latest message." in ask_prompt
     assert consulted["steps"] == ["consult"] and CONSULT in consult_prompt
 
 
