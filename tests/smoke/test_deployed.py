@@ -323,7 +323,7 @@ def test_deployed_detective_researches_the_web_and_files_findings() -> None:
         assert finding["tool_input"] and finding["created_at"]
     _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
     names = {run.name for run in runs}
-    assert {"research", "tools", "file_findings"} <= names, names
+    assert {"research", "research-agent", "model", "tools"} <= names, names  # the agent, inside research
     assert {f["tool"] for f in found} <= {run.name for run in runs if run.run_type == "tool"}
 
 

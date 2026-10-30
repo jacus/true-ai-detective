@@ -1,4 +1,4 @@
-import type { Board } from "@/lib/api";
+import type { Board, Todo } from "@/lib/api";
 import styles from "./board.module.css";
 
 /** The detective's steps for the latest message, and how sure the decision model was of the last one. */
@@ -7,13 +7,22 @@ export type LastStep = {
   probability: number | undefined;
 };
 
-/** The case board: leads, hypotheses, a timeline and contradictions (the detective graph's `board` state). */
+const MARKS: Record<Todo["status"], string> = {
+  pending: "○",
+  in_progress: "▶",
+  completed: "✓",
+};
+
+/** The case board: leads, hypotheses, a timeline and contradictions (the detective graph's `board` state),
+ * with the detective's last step and the research agent's plan for the latest message. */
 export function CaseBoard({
   board,
   lastStep,
+  plan,
 }: {
   board: Board;
   lastStep: LastStep | null;
+  plan: Todo[];
 }) {
   return (
     <section className={styles.board} aria-label="Case board">
@@ -24,6 +33,15 @@ export function CaseBoard({
           {lastStep.probability !== undefined &&
             ` (${Math.round(lastStep.probability * 100)}%)`}
         </output>
+      )}
+      {plan.length > 0 && (
+        <ol className={styles.plan} aria-label="Research plan">
+          {plan.map((todo) => (
+            <li key={todo.content} data-status={todo.status}>
+              {MARKS[todo.status]} {todo.content}
+            </li>
+          ))}
+        </ol>
       )}
       <Column title="Leads" empty="No leads yet.">
         {board.leads.map((lead) => (

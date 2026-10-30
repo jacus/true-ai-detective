@@ -3,11 +3,15 @@ as soon as the chat turn ends; a picture it kept shows as a picture (the web is 
 cassette, see test_research.py and test_image_research.py)."""
 
 import re
+import time
 
+import httpx
 from conftest import sign_up, unique_email
 from playwright.sync_api import Page, expect
-from test_image_research import ARENA, QUESTION, examine
-from test_loop import queue, queue_tool_calls
+from test_evidence import PHOTO, upload
+from test_image_research import ARENA, QUESTION, examine, looked_at
+from test_loop import queue, queue_tool_calls, received_so_far
+from test_research_agent import DONE, PLAN, search, write_todos
 from test_web_chat import PASSWORD, log_in
 
 
@@ -63,3 +67,41 @@ def test_a_picture_the_detective_kept_shows_in_the_locker(
     expect(kept).to_contain_text(f"🔎 {label}")
     expect(kept).to_contain_text(re.compile(r"Found by the detective \(examine_image\), \d{4}-\d\d-\d\d"))
     expect(kept.get_by_role("link", name="source")).to_have_attribute("href", ARENA)
+
+
+def test_the_research_plan_shows_while_the_detective_researches(
+    page: Page, web: str, api: str, database_url: str, fake_openai: str
+) -> None:
+    page.route("https://tile.openstreetmap.org/**", lambda route: route.abort())
+    email = unique_email()
+    cookie = sign_up(api, database_url, email, PASSWORD)
+    upload(api, cookie, "final.png", PHOTO, "image/png")
+    log_in(page, web, email)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    # Plan and search, tick the plan off, then look at the photo: its vision call is held for a while.
+    queue_tool_calls(
+        fake_openai,
+        [write_todos(PLAN), search("keys")],
+        [write_todos(DONE)],
+        [examine("final.png")],
+    )
+    httpx.post(f"{fake_openai}/delay/ImageAnswer", json=8)
+    since = received_so_far(fake_openai)
+    page.wait_for_load_state("networkidle")
+
+    message_box = page.get_by_placeholder("Describe what happened…")
+    message_box.fill("Where are my keys?")
+    message_box.press("Enter")
+
+    # While the photo is being looked at (after the detective's own state went out again), the plan is
+    # there, ticked off, and there is no answer yet (only the chat's in-progress bubble).
+    deadline = time.monotonic() + 30
+    while not looked_at(fake_openai, since):
+        assert time.monotonic() < deadline, "the photo was never looked at"
+        page.wait_for_timeout(200)
+    plan = page.get_by_role("list", name="Research plan")
+    expect(plan.get_by_role("listitem")).to_have_text([f"✓ {todo['content']}" for todo in DONE])
+    expect(page.get_by_text("Detective on the case.")).to_have_count(0)  # the fake's reply: not yet
+    # When the run ends it stays: it is in the detective's state now.
+    expect(page.get_by_text("Detective on the case.")).to_have_count(1, timeout=30_000)
+    expect(plan.get_by_role("listitem")).to_have_text([f"✓ {todo['content']}" for todo in DONE])

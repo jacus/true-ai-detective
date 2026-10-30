@@ -58,9 +58,13 @@ def test_the_detective_researches_the_web_and_files_what_it_found(
     events = research_example_com(recorded_api, cookie, fake_openai)
 
     assert final_state(events)["steps"] == ["research", "conclude"]
-    # The model was offered every tool, and had to call at least one.
-    [asked] = [r for r in httpx.get(f"{fake_openai}/received").json()[since:] if r.get("tools")]
-    assert [t["function"]["name"] for t in asked["tools"]] == TOOLS and asked["tool_choice"] == "required"
+    # The research agent: the model is offered its plan tool and every research tool, picks freely, and is
+    # asked for a structured report when it is done (OpenAI's JSON schema, alongside the tools).
+    asked = [r for r in httpx.get(f"{fake_openai}/received").json()[since:] if r.get("tools")]
+    assert [t["function"]["name"] for t in asked[0]["tools"]] == ["write_todos", *TOOLS]
+    assert "tool_choice" not in asked[0]
+    assert asked[0]["response_format"]["json_schema"]["name"] == "ResearchReport"
+    assert len(asked) == 2, "one round of tools, then the report"
     # Each web result is filed with its provenance: the tool, what it was asked, its source, when.
     filed = findings(recorded_api, cookie)
     assert sorted(filed) == sorted(call["name"] for call in EXAMPLE_COM)

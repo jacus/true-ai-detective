@@ -73,17 +73,17 @@ def test_the_detective_keeps_web_pictures_that_show_what_it_looks_for(
 ) -> None:
     cookie = sign_up(recorded_api, database_url, unique_email(), PASSWORD)
     since = received_so_far(fake_openai)
-    # Two rounds: find pictures and look at one, then look at another.
-    queue(fake_openai, {"choice": "research"}, {"choice": "research"}, {"choice": "conclude"})
+    # One research run, two rounds of tools: find pictures and look at one, then look at another.
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
     queue_tool_calls(fake_openai, [SEARCH, examine(ARENA)], [examine(PLAYER)])
     sees(fake_openai, CARS, NO_CAR)
 
     events = run_agent(recorded_api, cookie, "What car did the Porsche Tennis Grand Prix winner get?")
 
-    assert final_state(events)["steps"] == ["research", "research", "conclude"]
+    assert final_state(events)["steps"] == ["research", "conclude"]
     # The second round saw the first one's calls and results as they were: the pictures the search found.
     rounds = [r for r in httpx.get(f"{fake_openai}/received").json()[since:] if r.get("tools")]
-    assert len(rounds) == 2 and len(rounds[0]["messages"]) == 2
+    assert len(rounds) == 3 and len(rounds[0]["messages"]) == 2  # two rounds of tools, then the report
     earlier = rounds[1]["messages"][2:]
     assert [call["function"]["name"] for call in earlier[0]["tool_calls"]] == [
         "image_search",

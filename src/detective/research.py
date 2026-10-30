@@ -324,6 +324,7 @@ WEB_TOOLS = [
 for web_tool in WEB_TOOLS:  # a field of every tool (`@tool` doesn't take it): a ToolException is their result
     web_tool.handle_tool_error = True
 TOOLS = [search_case_file, *WEB_TOOLS]
+TOOL_NAMES = {each.name for each in TOOLS}
 # Their results are already in the case file, or filed by the tool itself: shown to the detective as they are.
 UNFILED = {search_case_file.name, examine_image.name}
 
