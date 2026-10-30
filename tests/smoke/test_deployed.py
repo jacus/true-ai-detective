@@ -317,12 +317,59 @@ def test_deployed_detective_researches_the_web_and_files_findings() -> None:
             "read_archived_page",
             "domain_registration",
             "dns_records",
+            "image_search",
+            "examine_image",
         }
         assert finding["tool_input"] and finding["created_at"]
     _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
     names = {run.name for run in runs}
     assert {"research", "tools", "file_findings"} <= names, names
     assert {f["tool"] for f in found} <= {run.name for run in runs if run.run_type == "tool"}
+
+
+def test_deployed_detective_finds_a_picture_and_keeps_it() -> None:
+    """Real JEV, nano and SearXNG: the detective searches pictures, looks at one with the question, and keeps
+    one that shows it (a picture finding). Up to three tries: a turn may not get that far."""
+    cookie = log_in()
+    started = datetime.now(UTC)
+    before = {
+        e["id"] for e in httpx.get(f"{API_URL}/cases/current/evidence", headers={"cookie": cookie}).json()
+    }
+
+    for _ in range(3):
+        question = (
+            f"Smoke pictures {uuid.uuid4().hex[:6]}: find pictures on the web of the car the Porsche Tennis "
+            "Grand Prix winner gets on court, and look at them: which make and model is it?"
+        )
+        with httpx.stream(
+            "POST",
+            f"{API_URL}/agent",
+            json=run_input(question),
+            headers={"accept": "text/event-stream", "cookie": cookie},
+            timeout=300,
+        ) as response:
+            assert response.status_code == 200
+            events = [json.loads(line[6:]) for line in response.iter_lines() if line.startswith("data: ")]
+        assert events[-1]["type"] == "RUN_FINISHED", events[-1]
+        evidence = httpx.get(f"{API_URL}/cases/current/evidence", headers={"cookie": cookie}).json()
+        kept = [e for e in evidence if e["tool"] == "examine_image" and e["id"] not in before]
+        if kept:
+            break
+    else:
+        raise AssertionError("no picture kept after 3 turns")
+
+    picture = kept[0]
+    assert picture["content_type"].startswith("image/") and picture["url"] and picture["facts"], picture
+    stored = httpx.get(
+        f"{API_URL}/cases/current/evidence/{picture['id']}/file",
+        headers={"cookie": cookie},
+        follow_redirects=True,  # to the presigned bucket URL
+        timeout=30,
+    )
+    assert stored.headers["content-type"] == picture["content_type"]
+    assert len(stored.content) == picture["size_bytes"]
+    _, runs = find_trace(started, lambda run: run.name == "LangGraph" and question in json.dumps(run.inputs))
+    assert "examine_image" in {run.name for run in runs if run.run_type == "tool"}  # traced
 
 
 def test_deployed_link_is_fetched_and_read() -> None:
