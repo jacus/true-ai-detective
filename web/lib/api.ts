@@ -88,6 +88,12 @@ export type Fact = {
   location: string | null;
 };
 
+/** One step of the research agent's plan (LangChain's TodoListMiddleware `Todo`). */
+export type Todo = {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+};
+
 /** The case board (api `Board`): it lives in the detective graph's state; runs stream its updates. */
 export type Board = {
   leads: { what: string; why: string }[];

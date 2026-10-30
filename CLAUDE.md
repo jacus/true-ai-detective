@@ -46,7 +46,8 @@ against the working tree and blocks the reply if it is stale or failing.
 
 - `agent.py`: the detective graph (recall → JEV decides → research/ask/consult/conclude → board). Run it to
   draw `docs/graphs/detective.png`.
-- `research.py`: research tools (`@tool`, pictures too) and filing web findings as evidence. `decision.py`: JEV via
+- `research_agent.py`: the research agent (`create_agent` + middleware: plan, budget, filing findings).
+  `research.py`: its tools (`@tool`, pictures too) and filing web findings as evidence. `decision.py`: JEV via
   AI Gateway. `memory.py`: case memory (pgvector, hybrid search). `board.py`: the case board.
 - `evidence.py` + `evidence_analysis.py` + `photo_analysis.py`: the locker and its analysis graphs.
 - `auth.py`, `cases.py`, `db.py` (RLS per request), `models.py` (+ `migrations/`), `cli.py`, `main.py`.
@@ -58,6 +59,9 @@ against the working tree and blocks the reply if it is stale or failing.
   inside the detective's run reaches the chat as text.
 - Web tools fail with `ToolException` (`handle_tool_error` on). An exception escaping a tool reaches
   ag-ui-langgraph's event serialiser, which walks objects; a big one took 16 GB.
+- Anything run inside a node is a subagent to ag-ui-langgraph: the browser gets the detective's state only,
+  replaced at each inner step. Live progress from inside goes as a custom event (`adispatch_custom_event`),
+  kept in its own React state.
 - Row-level security for library connections: `db.acting_user` ContextVar + the engine `begin` hook.
 - langchain-postgres: a fresh `HybridSearchConfig` per search (0.0.19 reuses the first query); no HNSW
   index for per-case filtered search.

@@ -4,6 +4,7 @@ The app reaches it through the OpenAI SDK's own `OPENAI_BASE_URL` setting, so ap
 Run: `python tests/e2e/fake_openai.py <port>`.
 """
 
+import asyncio
 import base64
 import json
 import math
@@ -22,8 +23,8 @@ received: list[dict] = []
 # it is asked a question about, in a part of a document (a fact quoting its first sentence), and the case
 # board (a timeline entry per numbered fact, a lead for the newest). Tests can queue other answers per
 # schema name.
-# A request offering tools (the detective's research) is answered with tool calls: a search of the case file
-# for "the case" unless a test queued its own rounds of calls.
+# A request offering tools (the research agent) is answered with the next queued round of tool calls; with no
+# round queued, a search of the case file for "the case" first, then the agent's structured report.
 PHOTO_SIGHTINGS = {
     "sightings": [
         {"kind": "text", "statement": 'A shop sign reads "PIEKARNIA NOWAK"'},
@@ -36,7 +37,14 @@ IMAGE_ANSWER = {
     "answer": "A white Porsche 911 Carrera S Cabriolet stands on the court.",
     "clues": [{"kind": "text", "statement": 'The number plate reads "911 Carrera"'}],
 }
+# What the research agent reports when its tools are done (its structured final answer).
+RESEARCH_REPORT = {
+    "answer": "The research is done; what it found is in the case file.",
+    "confidence": "medium",
+    "open_questions": [],
+}
 queued: dict[str, list[str]] = {}
+delays: dict[str, float] = {}  # seconds to hold the next answer for a schema, e.g. to watch a run mid-way
 tool_rounds: list[list[dict]] = []
 DEFAULT_ROUND = [{"name": "search_case_file", "args": {"query": "the case"}}]
 
@@ -99,19 +107,23 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
     payload = await request.json()
     received.append(payload)
     if payload.get("tools"):
-        calls = tool_rounds.pop(0) if tool_rounds else DEFAULT_ROUND
-        message = {"role": "assistant", "content": None, "tool_calls": tool_calls(calls)}
-        return completion(payload, message, "tool_calls")
+        called = any(m["role"] == "tool" for m in payload["messages"])
+        if tool_rounds or not called or not payload.get("response_format"):
+            calls = tool_rounds.pop(0) if tool_rounds else DEFAULT_ROUND
+            message = {"role": "assistant", "content": None, "tool_calls": tool_calls(calls)}
+            return completion(payload, message, "tool_calls")
     if not payload.get("stream"):
         schema = payload["response_format"]["json_schema"]["name"]
         answers = {
             "PhotoFacts": lambda: PHOTO_SIGHTINGS,
             "DocumentFacts": lambda: document_facts(payload),
             "ImageAnswer": lambda: IMAGE_ANSWER,
+            "ResearchReport": lambda: RESEARCH_REPORT,
         }
         default = answers.get(schema, lambda: case_board(payload))()
         waiting = queued.get(schema, [])
         content = waiting.pop(0) if waiting else json.dumps(default)
+        await asyncio.sleep(delays.pop(schema, 0))
         return completion(payload, {"role": "assistant", "content": content}, "stop")
     user_text = next(m["content"] for m in reversed(payload["messages"]) if m["role"] == "user")
     words = reply_for(user_text).split(" ")
@@ -226,10 +238,22 @@ async def queue_tool_calls(request: Request) -> None:
     tool_rounds.extend(await request.json())
 
 
+@app.delete("/tool_calls")
+def forget_tool_calls() -> None:
+    """Drop the rounds no one asked for (e.g. after the research budget stopped an agent)."""
+    tool_rounds.clear()
+
+
 @app.post("/answers/{schema}")
 async def queue_answers(schema: str, request: Request) -> None:
     """The next structured answers (raw JSON) for that schema, used in order before the default answer."""
     queued.setdefault(schema, []).extend(await request.json())
+
+
+@app.post("/delay/{schema}")
+async def delay_answer(schema: str, request: Request) -> None:
+    """Hold the next answer for that schema for some seconds (the body is the number)."""
+    delays[schema] = float(await request.json())
 
 
 @app.get("/received")
