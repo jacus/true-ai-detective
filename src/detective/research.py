@@ -45,7 +45,7 @@ from typing import Any, TypedDict
 import httpx
 from langchain.chat_models import init_chat_model
 from langchain.tools import ToolRuntime, tool
-from langchain_core.messages import HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
 from langchain_core.tools import ToolException
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, ValidationError
@@ -86,7 +86,8 @@ class ImageAnswer(BaseModel):
     """What a picture shows about the detective's question."""
 
     shows_subject: bool = Field(
-        description="True only if the picture clearly shows what the question is about"
+        description="True if the thing the question is about is visible in the picture, even when the "
+        "question can't be fully answered from it; false if it isn't there"
     )
     answer: str = Field(
         description="The answer from what is visible, in one or two sentences; say what can't be told"
@@ -245,24 +246,20 @@ async def examine_image(image: str, question: str, runtime: ToolRuntime[CaseCont
     web = image.startswith(("http://", "https://"))
     content = (await fetch(image)).content if web else await case_photo(case_id, image)
     content_type = picture_type(content, image)
-    try:
-        seen = await examiner.ainvoke(
-            [
-                SystemMessage(EXAMINE),
-                HumanMessage(
-                    content=[
-                        {"type": "text", "text": question},
-                        {
-                            "type": "image",
-                            "base64": base64.b64encode(content).decode(),
-                            "mime_type": content_type,
-                        },
-                    ]
-                ),
-            ]
-        )
-    except ValidationError as error:  # e.g. a clue breaking Sighting's rules
-        raise ToolException(f"The answer about {image} was unusable: {error.errors()[0]['msg']}") from None
+    picture = {"type": "image", "base64": base64.b64encode(content).decode(), "mime_type": content_type}
+    messages: list[BaseMessage] = [
+        SystemMessage(EXAMINE),
+        HumanMessage(content=[{"type": "text", "text": question}, picture]),
+    ]
+    for _ in range(photo_analysis.MAX_ATTEMPTS):  # a rejected answer goes back once, with the reason
+        try:
+            seen = await examiner.ainvoke(messages)
+            break
+        except ValidationError as error:  # the OpenAI SDK parses the answer, Sighting's rules included
+            rejected = "; ".join(e["msg"] for e in error.errors())
+            messages.append(HumanMessage(f"Your last answer was rejected: {rejected}. Answer again."))
+    else:
+        raise ToolException(f"The answer about {image} was unusable: {rejected}")
     assert isinstance(seen, ImageAnswer)
     if not web:  # already in the case file: what was seen serves this turn
         return "\n".join(f"{line} (from {image}, looked at again)" for line in lines(seen)), {"url": None}

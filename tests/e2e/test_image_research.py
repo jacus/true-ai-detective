@@ -226,3 +226,27 @@ def test_a_busy_site_asking_for_a_short_wait_is_waited_out(
     assert asked[0] == "TrueAIDetective/1.0 (https://github.com/jacus/true-ai-detective)"  # who is asking
     [kept] = [item for item in listed(api, cookie) if item["tool"] == "examine_image"]
     assert kept["url"] == picture and kept["content_type"] == "image/png"
+
+
+def test_an_answer_breaking_the_rules_goes_back_once_with_the_reason(
+    api: str, database_url: str, fake_openai: str
+) -> None:
+    cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+    upload(api, cookie, "final.png", PHOTO, "image/png")
+    since = received_so_far(fake_openai)
+    unquoted = {**CARS, "clues": [{"kind": "text", "statement": "The court boards read PORSCHE"}]}
+    sees(fake_openai, unquoted, CARS)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    queue_tool_calls(fake_openai, [examine("final.png")])
+
+    run_agent(api, cookie, QUESTION)
+
+    first, second = looked_at(fake_openai, since)
+    assert len(first["messages"]) == 2
+    assert second["messages"][-1]["content"].startswith(
+        "Your last answer was rejected: Value error, a text sighting must quote the writing in double quotes"
+    )
+    assert (
+        f"{CARS['answer']} (from final.png, looked at again)"
+        in chat_request(fake_openai)["messages"][0]["content"]
+    )
