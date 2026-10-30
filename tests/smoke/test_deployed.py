@@ -327,11 +327,11 @@ def test_deployed_detective_researches_the_web_and_files_findings() -> None:
     assert {f["tool"] for f in found} <= {run.name for run in runs if run.run_type == "tool"}
 
 
-# Wikimedia Commons, "Porsche-Arena during 2022 Porsche Tennis Grand Prix" by Charliechytrak (CC BY-SA 4.0):
-# the prize cars stand beside the court.
-ARENA = (
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/Porsche-Arena_during_2022_Porsche_Tennis_Grand_"
-    "Prix.jpg/500px-Porsche-Arena_during_2022_Porsche_Tennis_Grand_Prix.jpg"
+# Wikimedia Commons, "Ana Ivanović 2010, Stuttgart2" by Henry Weidemann (CC BY 2.0): a player in front of
+# sponsor boards, big and clear enough for nano (the e2e arena picture's cars are too small for it).
+PLAYER = (
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Ana_Ivanovi%C4%87_2010%2C_Stuttgart2.jpg/"
+    "500px-Ana_Ivanovi%C4%87_2010%2C_Stuttgart2.jpg"
 )
 
 
@@ -346,8 +346,8 @@ def test_deployed_detective_looks_at_a_picture_and_keeps_it() -> None:
 
     for _ in range(3):
         question = (
-            f"Smoke pictures {uuid.uuid4().hex[:6]}: look at this picture, I have nothing else: {ARENA} "
-            "Which cars stand beside the court, which make and models?"
+            f"Smoke pictures {uuid.uuid4().hex[:6]}: look at this picture, I have nothing else: {PLAYER} "
+            "What is written on the boards behind the tennis player?"
         )
         with httpx.stream(
             "POST",
