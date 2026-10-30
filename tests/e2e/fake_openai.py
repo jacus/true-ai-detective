@@ -35,6 +35,7 @@ PHOTO_SIGHTINGS = {
 IMAGE_ANSWER = {
     "shows_subject": True,
     "answer": "A white Porsche 911 Carrera S Cabriolet stands on the court.",
+    "sure": True,
     "clues": [{"kind": "text", "statement": 'The number plate reads "911 Carrera"'}],
 }
 # What the research agent reports when its tools are done (its structured final answer).

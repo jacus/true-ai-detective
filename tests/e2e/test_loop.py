@@ -89,11 +89,13 @@ def test_the_loop_stops_after_two_research_runs(api: str, database_url: str, fak
 
     events = run_agent(api, cookie, "Was the man in the grey coat seen anywhere else?")
 
-    # Two research runs, then research is off the table: the most probable other step (consult) is taken.
-    assert final_state(events)["steps"] == ["research", "research", "consult"]
+    # Two research runs, then research is off the table: the detective answers with what it found and what it
+    # couldn't (conclude), even though consult is the most probable other step: it doesn't ask the client
+    # for what research couldn't find (S13d).
+    assert final_state(events)["steps"] == ["research", "research", "conclude"]
     assert len(decision_requests(fake_openai, since)) == 3
     assert len(embedded(fake_openai, since)) == 3, "the client's words, then each run's own query"
-    assert CONSULT in chat_request(fake_openai)["messages"][0]["content"]
+    assert CONCLUDE in chat_request(fake_openai)["messages"][0]["content"]
 
 
 def test_a_refused_decision_falls_back_to_asking(api: str, database_url: str, fake_openai: str) -> None:

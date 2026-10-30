@@ -18,10 +18,12 @@ class Settings(BaseSettings):
     migrations_database_url: str = "postgresql://detective:detective@localhost:5432/detective"
     # `provider:model` for LangChain's init_chat_model. Very cheap models only (PLAN.md D3).
     chat_model: str = "openai:gpt-5.4-nano"
-    # `provider:model` that looks at photos: the client's (photo analysis) and the detective's (examine_image,
-    # S13b). A model that tells similar things apart better (e.g. car models), such as openai:gpt-5.4-mini,
-    # costs more per image.
+    # `provider:model` that looks at photos, the junior: the client's (photo analysis) and the detective's
+    # (examine_image, S13b).
     vision_model: str = "openai:gpt-5.4-nano"
+    # The senior: looks at a picture again when the junior isn't sure of its answer (examine_image, S13d). It
+    # tells similar things apart better (e.g. car models, small writing) and costs more per picture.
+    senior_vision_model: str = "openai:gpt-5.4-mini"
     # `provider:model` for LangChain's init_embeddings (case memory, S11). Its vectors are 1536 wide: the
     # case_memory table's size, so changing the model means a migration and a `detective reindex`.
     embedding_model: str = "openai:text-embedding-3-small"

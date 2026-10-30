@@ -1,6 +1,7 @@
 """Visual research (S13b): the detective finds pictures on the web, looks at them with a question, and keeps
 the ones that show what it is looking for in the evidence locker, as photos with their provenance. It can
-also look again, with a question, at a photo the client gave it.
+also look again, with a question, at a photo the client gave it. The cheap (junior) vision model looks first;
+when it isn't sure, the senior one looks too (S13d).
 
 The model's tool calls and what the vision model "sees" are scripted (the fake OpenAI server); the tools are
 real code. The image search and the pictures were recorded once from the real web and a real SearXNG
@@ -36,6 +37,7 @@ PLAYER = (  # a player, and no car
 CARS: dict[str, Any] = {
     "shows_subject": True,
     "answer": "Three Porsche cars, a red Taycan among them, stand beside the court.",
+    "sure": True,
     "clues": [
         {"kind": "object", "statement": "A red four-door electric sports car with a light bar at the back"},
         {"kind": "text", "statement": 'The court boards read "PORSCHE"'},
@@ -44,6 +46,7 @@ CARS: dict[str, Any] = {
 NO_CAR: dict[str, Any] = {
     "shows_subject": False,
     "answer": "No car is visible: a player hits a forehand.",
+    "sure": True,
     "clues": [],
 }
 SEEN = "A white Porsche 911 Carrera S Cabriolet stands on the court."  # what the fake sees by default
@@ -97,10 +100,11 @@ def test_the_detective_keeps_web_pictures_that_show_what_it_looks_for(
     question, picture = requests[0]["messages"][1]["content"]
     assert question == {"type": "text", "text": QUESTION}
     assert picture["image_url"]["url"].startswith("data:image/jpeg;base64,")
-    # The picture that shows the cars is kept, with its provenance; the other one isn't.
+    # The picture that shows the cars is kept, with its provenance; the other one isn't, nor is the search's
+    # list of results (S13d: it is what to look at next, and the agent had it).
     filed = [item for item in listed(recorded_api, cookie) if item["kind"] == "finding"]
-    assert sorted(item["tool"] for item in filed) == ["examine_image", "image_search"]
-    [kept] = [item for item in filed if item["tool"] == "examine_image"]
+    [kept] = filed
+    assert kept["tool"] == "examine_image"
     assert kept["tool_input"] == examine(ARENA)["args"] and kept["url"] == ARENA
     assert kept["content_type"] == "image/jpeg" and kept["created_at"]
     assert [fact["statement"] for fact in kept["facts"]] == [
@@ -114,9 +118,6 @@ def test_the_detective_keeps_web_pictures_that_show_what_it_looks_for(
     )
     assert stored.headers["content-type"] == "image/jpeg" and len(stored.content) == kept["size_bytes"]
     assert Image.open(io.BytesIO(stored.content)).width == 500  # the picture itself, as downloaded
-    # The search's results are filed as a finding too: each picture's address and the page it is on.
-    [found] = [item for item in filed if item["tool"] == "image_search"]
-    assert found["tool_input"] == SEARCH["args"] and found["facts"]
     # The answer is written from what was seen, naming the kept picture; the dropped one is only reported.
     system = chat_request(fake_openai)["messages"][0]["content"]
     assert f"{CARS['answer']} (from examine_image: {ARENA}, {QUESTION})" in system
@@ -250,3 +251,24 @@ def test_an_answer_breaking_the_rules_goes_back_once_with_the_reason(
         f"{CARS['answer']} (from final.png, looked at again)"
         in chat_request(fake_openai)["messages"][0]["content"]
     )
+
+
+def test_when_the_junior_isnt_sure_the_senior_looks(api: str, database_url: str, fake_openai: str) -> None:
+    cookie = sign_up(api, database_url, unique_email(), PASSWORD)
+    upload(api, cookie, "final.png", PHOTO, "image/png")
+    since = received_so_far(fake_openai)
+    unsure = {**CARS, "answer": "A dark SUV of some kind stands on the court.", "sure": False}
+    sees(fake_openai, unsure, CARS)
+    queue(fake_openai, {"choice": "research"}, {"choice": "conclude"})
+    queue_tool_calls(fake_openai, [examine("final.png")])
+
+    run_agent(api, cookie, QUESTION)
+
+    # The junior (VISION_MODEL) looked, wasn't sure, and the senior (SENIOR_VISION_MODEL) looked at the same
+    # picture with the same question; the senior's answer is the one used.
+    junior, senior = looked_at(fake_openai, since)
+    assert (junior["model"], senior["model"]) == ("gpt-5.4-nano", "gpt-5.4-mini")
+    assert senior["messages"] == junior["messages"]
+    system = chat_request(fake_openai)["messages"][0]["content"]
+    assert f"{CARS['answer']} (from final.png, looked at again)" in system
+    assert unsure["answer"] not in system

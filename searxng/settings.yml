@@ -7,3 +7,10 @@ server:
   image_proxy: false
 search:
   formats: [html, json]
+# Railway's shared addresses get the default general engines (Brave, DuckDuckGo, Google) rate-limited or
+# CAPTCHA'd; these two also answer from there (web_search asks the news engines as well, which do too).
+engines:
+  - name: 360search
+    disabled: false
+  - name: yandex
+    disabled: false

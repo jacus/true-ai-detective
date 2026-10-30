@@ -12,13 +12,16 @@ assumption (`consult`; a real pause comes with S15), or answer (`conclude`). To 
 the situation to the research agent (`research_agent`, LangChain's `create_agent`): it plans, calls the
 research tools (`research.TOOLS`: the case file, web search, web pages, archived pages, domain records, DNS,
 image search, looking at a picture with a question) within a budget, files what it finds in the evidence
-locker, and reports. The loop is bounded in code: after MAX_SEARCHES research runs in one turn, the most
-probable other step is taken. The state is the conversation, what was found, this turn's research (tool
-calls, plan, report), the decision and the board; all are checkpointed per case, and ag-ui-langgraph streams
-the state to the browser as it changes (CopilotKit shared state); the plan also streams while it is written.
+locker, and reports. The loop is bounded in code: after MAX_SEARCHES research runs in one turn, the detective
+answers with what it has (conclude) rather than asking the client again. The state is the conversation, what
+was found, this turn's research (tool calls, plan, report), what research has tried and which photos were
+looked at (kept across turns, so nothing is repeated), the decision and the board; all are checkpointed per
+case, and ag-ui-langgraph streams the state to the browser as it changes (CopilotKit shared state); the plan
+also streams while it is written.
 Run directly (`just graphs`) to compile it and draw it to docs/graphs/detective.png.
 """
 
+import operator
 import uuid
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -31,6 +34,8 @@ from langchain_core.messages import (
     HumanMessage,
     RemoveMessage,
     SystemMessage,
+    ToolCall,
+    ToolMessage,
 )
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
@@ -41,19 +46,23 @@ from detective import board, decision, research, research_agent
 from detective.board import Board
 from detective.db import SessionLocal
 from detective.decision import Action, Decision
-from detective.models import Evidence, Fact
+from detective.models import Evidence, EvidenceKind, Fact
 from detective.research import CaseContext
 from detective.settings import settings
+from detective.storage import INLINE_TYPES
 
 PERSONA = "You are True AI Detective, a private investigator. Be concise and curious."
 REPLIES: dict[Action, str] = {  # what each reply node is asked to do
-    "ask": "Ask the client one or two sharp questions about what the case file doesn't tell you yet.",
+    "ask": "Ask the client one or two sharp questions about what the case file doesn't tell you yet. Never "
+    "ask again for something the client already gave, answered or declined; if there is nothing new to ask, "
+    "say what you will research next instead.",
     "consult": "State the assumption you are making, in one sentence, and ask the client to confirm or "
     "correct it before you go on.",
     "conclude": "Answer the client from what you found, naming the source (file, page) of each point. "
     "Say plainly what is still unknown.",
 }
 MAX_SEARCHES = 2  # research runs per client message (each one plans and calls tools within its own budget)
+TRIED_SHOWN = 20  # of what research tried in earlier rounds, the latest shown
 
 model = init_chat_model(settings.chat_model)
 
@@ -62,7 +71,9 @@ model = init_chat_model(settings.chat_model)
 # (e.g. that it can't look at pictures).
 ABILITIES = (
     "You research with tools: the case file, web search, web pages, archived pages, domain and DNS records, "
-    "image search, and looking at a picture (a photo in the case file or one on the web) with a question."
+    "image search, and looking at a picture (a photo in the case file or one on the web) with a question. "
+    "What you know of a photo comes from those looks, which can miss things: never contradict the client "
+    "about what their photo shows."
 )
 
 
@@ -112,6 +123,10 @@ class DetectiveState(MessagesState):
 
     recalled: list[str]  # what was found in the case file for the latest message, as cited lines
     searches: int  # research runs done for the latest message
+    # Kept across turns (the reducer appends each research run's): what research tried, and the photos looked
+    # at with a question.
+    tried: Annotated[list[str], operator.add]
+    examined: Annotated[list[str], operator.add]
     # This turn's tool calls and their results, apart from the conversation: the chat shows only replies.
     research: Annotated[list[AnyMessage], add_messages]
     plan: list[Todo]  # the research agent's latest plan (its `todos`), shown above the chat
@@ -153,30 +168,62 @@ async def recall(state: DetectiveState, runtime: Runtime[CaseContext]) -> dict:
     }
 
 
-def situation(state: DetectiveState) -> str:
-    """What the decision model and the research agent are told: the talk, what's been found and reported,
-    research runs left."""
+async def case_photos(case_id: str) -> list[str]:
+    """The file names of the photos the client gave, oldest first."""
+    async with SessionLocal() as db:  # as the request's client: row-level security applies
+        found = await db.scalars(
+            select(Evidence.label)
+            .where(
+                Evidence.case_id == uuid.UUID(case_id),
+                Evidence.kind == EvidenceKind.file,
+                Evidence.content_type.in_(INLINE_TYPES),
+            )
+            .order_by(Evidence.created_at)
+        )
+    return list(dict.fromkeys(found))
+
+
+def situation(state: DetectiveState, photos: list[str]) -> str:
+    """What the decision model and the research agent are told: the talk, the photos, what's been tried, found
+    and reported, research runs left."""
     talk = "\n".join(
         f"{'Client' if m.type == 'human' else 'Detective'}: {m.text}" for m in state["messages"][-10:]
     )
     found = "\n".join(f"- {line}" for line in state.get("recalled", [])) or "(nothing)"
     report = f"{reported(state)}\n\n" if state.get("report") else ""
+    looked = set(state.get("examined", []))
+    shown = [
+        f"{photo}{'' if photo in looked else ' (not looked at with a question yet)'}" for photo in photos
+    ]
+    pictures = (
+        f"The client's photos: {', '.join(shown)}. What the case file notes about a photo is a first glance "
+        "by a small model when it was added, and can be wrong: look at the photo with a question before "
+        "relying on it.\n\n"
+        if photos
+        else ""
+    )
+    tried = "\n".join(f"- {line}" for line in state.get("tried", [])[-TRIED_SHOWN:])
+    earlier = (
+        f"Research already tried (don't repeat it; what it found is in the case file):\n{tried}\n\n"
+        if tried
+        else ""
+    )
     return (
-        f"Conversation, latest last:\n{talk}\n\nFound in the case file so far:\n{found}\n\n{report}"
+        f"Conversation, latest last:\n{talk}\n\n{pictures}Found in the case file so far:\n{found}\n\n"
+        f"{earlier}{report}"
         f"Research rounds done for the latest message: {state.get('searches', 0)} of {MAX_SEARCHES}."
     )
 
 
-async def decide(state: DetectiveState) -> dict:
+async def decide(state: DetectiveState, runtime: Runtime[CaseContext]) -> dict:
     """The next step, from the decision model; the loop's bound is enforced here, in code."""
+    photos = await case_photos(case_of(runtime))
     # ty (beta) can't read the signature @traceable keeps (a ParamSpec); the call matches.
-    choice = await decision.next_step(situation(state))  # ty: ignore[invalid-argument-type]
+    choice = await decision.next_step(situation(state, photos))  # ty: ignore[invalid-argument-type]
     if choice["action"] == "research" and state.get("searches", 0) >= MAX_SEARCHES:
-        others = {a: p for a, p in choice["probabilities"].items() if a != "research"}
-        choice = {
-            "action": max(others, key=others.__getitem__) if others else "ask",
-            "probabilities": choice["probabilities"],
-        }
+        # Research wanted more and the budget is spent: answer with what was found and what wasn't, rather
+        # than ask the client for what research couldn't find.
+        choice = {"action": "conclude", "probabilities": choice["probabilities"]}
     return {"decision": choice, "steps": [*state.get("steps", []), choice["action"]]}
 
 
@@ -187,21 +234,53 @@ def next_step(state: DetectiveState) -> Action:
 async def research_step(state: DetectiveState, runtime: Runtime[CaseContext]) -> dict:
     """The research agent works on the situation: it plans, calls tools, files what it finds, and reports.
 
-    It runs as a graph inside this node (a subgraph: traced, streamed and checkpointed under this run). Its
+    It runs as a graph inside this node (a subgraph: traced, streamed and checkpointed under this run). It is
+    given the situation, and the client's photos no one has looked at yet (it looks at one first). Its
     messages (tool calls and results), plan and report come back into this turn's state; what it filed joins
-    what the detective knows."""
+    what the detective knows, and what it tried and looked at is kept for later turns."""
+    photos = await case_photos(case_of(runtime))
+    unexamined = [photo for photo in photos if photo not in state.get("examined", [])]
     result = await research_agent.agent.ainvoke(
-        {"messages": [HumanMessage(situation(state))]}, context=runtime.context
+        {"messages": [HumanMessage(situation(state, photos))], "unexamined": unexamined},
+        context=runtime.context,
     )
     report = research_agent.report_of(result)
     found = list(dict.fromkeys([*state.get("recalled", []), *result.get("found", [])]))  # new after old
+    calls, outcomes = tool_calls(result["messages"])
     return {
         "research": result["messages"][1:],  # after the situation it was given
         "recalled": found,
         "plan": result.get("todos", []),
         "report": report.model_dump(),
         "searches": state.get("searches", 0) + 1,
+        "tried": [tried(call, outcomes.get(call["id"])) for call in calls],
+        "examined": [
+            call["args"]["image"]
+            for call in calls
+            if call["name"] == research.examine_image.name and call["args"].get("image") in photos
+        ],
     }
+
+
+def tool_calls(messages: list[AnyMessage]) -> tuple[list[ToolCall], dict[str | None, ToolMessage]]:
+    """A run's research tool calls (not its plan), and each one's result by call id."""
+    calls = [
+        call
+        for message in messages
+        if isinstance(message, AIMessage)
+        for call in message.tool_calls
+        if call["name"] in research.TOOL_NAMES
+    ]
+    return calls, {m.tool_call_id: m for m in messages if isinstance(m, ToolMessage)}
+
+
+def tried(call: ToolCall, outcome: ToolMessage | None) -> str:
+    """What one tool call tried, as later rounds are told it, e.g. "web_search: x (nothing: No web …)"."""
+    if outcome is None:  # refused or never run (e.g. the budget ran out)
+        return f"{research.label(call)} (not run)"
+    if outcome.status == "error":
+        return f"{research.label(call)} (nothing: {outcome.text[:150]})"
+    return research.label(call)
 
 
 async def reply(state: DetectiveState, action: Action) -> dict:

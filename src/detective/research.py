@@ -5,13 +5,15 @@ chat model is shown (`bind_tools`, in the agent), and LangGraph's `ToolNode` run
 in parallel. A tool that fails returns its error to the detective instead of failing the run.
 
     search_case_file     the case memory (S11), within this case only (the run's context, via `ToolRuntime`)
-    web_search           our own SearXNG meta-search service (its JSON API): titles, addresses and snippets
+    web_search           our own SearXNG meta-search service (its JSON API), web and news: titles, addresses,
+                         snippets
     read_web_page        a page's main text (trafilatura), read like the client's links
     read_archived_page   the Internet Archive's copy of a page closest to a date (Wayback Machine)
     domain_registration  who registered a domain, and when (RDAP, the successor of WHOIS)
     dns_records          a name's DNS records (DNS over HTTPS)
     image_search         pictures on the web (SearXNG's image search): titles, image and page addresses
-    examine_image        the vision model answers a question about a picture: a web image, or a client's photo
+    examine_image        a vision model answers a question about a picture: a web image, or a client's photo
+                         (the junior model first; the senior one when the junior isn't sure)
 
 A web tool that can't get its answer raises `ToolException` and has `handle_tool_error` on, so the tool
 itself returns the error as its result, for the detective to read. (The ToolNode would catch any other
@@ -22,7 +24,11 @@ The web tools return `(content, artifact)` (`response_format="content_and_artifa
 was found; the artifact, which no model ever sees, is where it came from. `findings` files each web result
 in the locker as a `finding` evidence with its provenance (tool, input, source address, time), analysed
 into cited facts and indexed in the case memory like any document: what the detective finds on the web
-becomes part of the case file, so it is recalled later and placed on the board.
+becomes part of the case file, so it is recalled later and placed on the board. Search result lists aren't
+filed (most of what they list is beside the point): the pages read and the pictures kept are.
+
+A search that finds nothing says why when it knows: SearXNG lists the engines that didn't answer (from
+Railway's shared addresses some are rate-limited or ask for a CAPTCHA), and rewording won't help then.
 
 `examine_image` decides what to keep itself: the vision model's answer is structured (`ImageAnswer`) and says
 whether the picture shows what the question is about. A web picture that does is filed by the tool as a
@@ -46,6 +52,7 @@ import httpx
 from langchain.chat_models import init_chat_model
 from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.runnables import Runnable
 from langchain_core.tools import ToolException
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, ValidationError
@@ -61,6 +68,8 @@ from detective.settings import settings
 from detective.storage import INLINE_TYPES, object_key, s3
 
 WEB_RESULTS = 8  # search results passed on
+# Web search asks SearXNG's news engines too: they answer from Railway when its general ones are blocked.
+WEB_CATEGORIES = "general,news"
 IMAGE_RESULTS = 10  # image search results passed on
 PAGE_CHARS = 40_000  # of a page's text: 10 chunks to analyse at most, so a research step stays quick
 WAYBACK = "https://web.archive.org"
@@ -92,6 +101,10 @@ class ImageAnswer(BaseModel):
     answer: str = Field(
         description="The answer from what is visible, in one or two sentences; say what can't be told"
     )
+    sure: bool = Field(
+        description="True only if the visible details settle the answer; false if you are choosing between "
+        "similar things, or the details that would tell are too small or unclear"
+    )
     clues: list[Sighting] = Field(
         description="Up to 6 visible details the answer rests on (badges, writing, shapes), the most telling "
         "first"
@@ -103,7 +116,12 @@ EXAMINE = (
     "name the details your answer rests on. Never guess who people are."
 )
 # Not streamed, like every structured answer: none of it is chat (see evidence_analysis.extractor).
-examiner = init_chat_model(settings.vision_model, disable_streaming=True).with_structured_output(ImageAnswer)
+# Junior and senior: the cheap model looks first; the one that tells similar things apart better (and costs
+# more per picture) looks only when the junior isn't sure.
+junior = init_chat_model(settings.vision_model, disable_streaming=True).with_structured_output(ImageAnswer)
+senior = init_chat_model(settings.senior_vision_model, disable_streaming=True).with_structured_output(
+    ImageAnswer
+)
 
 
 class Source(TypedDict):
@@ -130,6 +148,17 @@ async def fetch(url: str, **request: Any) -> httpx.Response:
         raise ToolException(f"Couldn't get {url}: {error}") from None
 
 
+def nothing_found(answer: dict, what: str) -> ToolException:
+    """No results, naming the engines that didn't answer when SearXNG lists them (rewording won't help)."""
+    down = ", ".join(f"{engine} ({reason})" for engine, reason in answer.get("unresponsive_engines", []))
+    if down:
+        return ToolException(
+            f"No {what}: the search engines didn't answer ({down}). Rewording won't help; use what else "
+            "you have (the case file, other tools, pages and pictures already found)"
+        )
+    return ToolException(f"No {what}")
+
+
 @tool
 async def search_case_file(query: str, runtime: ToolRuntime[CaseContext]) -> str:
     """Search this case's file (the client's evidence and what was found before) for a few words: names,
@@ -140,11 +169,14 @@ async def search_case_file(query: str, runtime: ToolRuntime[CaseContext]) -> str
 
 @tool(response_format="content_and_artifact")
 async def web_search(query: str) -> tuple[str, Source]:
-    """Search the web. Returns the top results' titles, addresses and snippets."""
-    response = await fetch(f"{settings.searx_url}/search", params={"q": query, "format": "json"})
-    results = response.json()["results"][:WEB_RESULTS]
+    """Search the web and the news. Returns the top results' titles, addresses and snippets."""
+    response = await fetch(
+        f"{settings.searx_url}/search", params={"q": query, "format": "json", "categories": WEB_CATEGORIES}
+    )
+    answer = response.json()
+    results = answer["results"][:WEB_RESULTS]
     if not results:
-        raise ToolException(f"No web results for {query!r}")
+        raise nothing_found(answer, f"web results for {query!r}")
     found = "\n\n".join(f"{r['title']}\n{r['url']}\n{r.get('content') or ''}".strip() for r in results)
     return found, {"url": None}  # many addresses: each result carries its own
 
@@ -225,9 +257,10 @@ async def image_search(query: str) -> tuple[str, Source]:
     response = await fetch(
         f"{settings.searx_url}/search", params={"q": query, "format": "json", "categories": "images"}
     )
-    results = response.json()["results"][:IMAGE_RESULTS]
+    answer = response.json()
+    results = answer["results"][:IMAGE_RESULTS]
     if not results:
-        raise ToolException(f"No pictures for {query!r}")
+        raise nothing_found(answer, f"pictures for {query!r}")
     found = "\n\n".join(f"{r['title']}\nimage: {r['img_src']}\nfound on: {r['url']}" for r in results)
     return found, {"url": None}
 
@@ -251,16 +284,9 @@ async def examine_image(image: str, question: str, runtime: ToolRuntime[CaseCont
         SystemMessage(EXAMINE),
         HumanMessage(content=[{"type": "text", "text": question}, picture]),
     ]
-    for _ in range(photo_analysis.MAX_ATTEMPTS):  # a rejected answer goes back once, with the reason
-        try:
-            seen = await examiner.ainvoke(messages)
-            break
-        except ValidationError as error:  # the OpenAI SDK parses the answer, Sighting's rules included
-            rejected = "; ".join(e["msg"] for e in error.errors())
-            messages.append(HumanMessage(f"Your last answer was rejected: {rejected}. Answer again."))
-    else:
-        raise ToolException(f"The answer about {image} was unusable: {rejected}")
-    assert isinstance(seen, ImageAnswer)
+    seen = await look(junior, messages, image)
+    if not seen.sure:  # the junior can't settle it: the senior looks, at the same picture and question
+        seen = await look(senior, messages, image)
     if not web:  # already in the case file: what was seen serves this turn
         return "\n".join(f"{line} (from {image}, looked at again)" for line in lines(seen)), {"url": None}
     if not seen.shows_subject:
@@ -272,6 +298,20 @@ async def examine_image(image: str, question: str, runtime: ToolRuntime[CaseCont
     clues: list[Found] = [{"kind": c.kind, "statement": c.statement} for c in seen.clues[:6]]
     evidence.facts = facts_from(case_id, [answer, *clues, *exif["facts"]])
     return "\n".join(await store(evidence, content, [])), {"url": image}
+
+
+async def look(examiner: Runnable, messages: list[BaseMessage], image: str) -> ImageAnswer:
+    """One examiner's answer; a rejected one goes back once, with the reason."""
+    asked, rejected = list(messages), ""
+    for _ in range(photo_analysis.MAX_ATTEMPTS):
+        try:
+            seen = await examiner.ainvoke(asked)
+            assert isinstance(seen, ImageAnswer)
+            return seen
+        except ValidationError as error:  # the OpenAI SDK parses the answer, Sighting's rules included
+            rejected = "; ".join(e["msg"] for e in error.errors())
+            asked.append(HumanMessage(f"Your last answer was rejected: {rejected}. Answer again."))
+    raise ToolException(f"The answer about {image} was unusable: {rejected}")
 
 
 def lines(seen: ImageAnswer) -> list[str]:
@@ -327,6 +367,8 @@ TOOLS = [search_case_file, *WEB_TOOLS]
 TOOL_NAMES = {each.name for each in TOOLS}
 # Their results are already in the case file, or filed by the tool itself: shown to the detective as they are.
 UNFILED = {search_case_file.name, examine_image.name}
+# Lists of what could be read or looked at next: for the research agent only, neither filed nor recalled.
+LISTINGS = {web_search.name, image_search.name}
 
 
 def label(call: ToolCall) -> str:
@@ -338,6 +380,8 @@ async def findings(case_id: uuid.UUID, call: ToolCall, result: ToolMessage) -> l
     """What one tool call found, as the detective is shown it (cited lines); web results are filed first."""
     if result.status == "error":
         return [f"Nothing from {label(call)} ({result.text[:300]})"]
+    if call["name"] in LISTINGS:
+        return []
     if call["name"] in UNFILED:
         return result.text.splitlines()
     return await file(case_id, call, result.text, result.artifact)
