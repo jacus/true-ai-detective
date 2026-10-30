@@ -18,8 +18,9 @@ Read first: **`PLAN.md`** (decisions, board, current state: the source of truth)
 - **Vertical slices, observable end to end** (browser or HTTP), with at least one e2e check each.
 - **Very cheap models only** (`gpt-5.4-nano`, `text-embedding-3-small`, JEV). Tests never make paid calls
   and never reach the internet.
-- **Ask before outward-facing actions** (publishing, deleting, filing issues upstream). Commits, pushes to
-  `main` and Railway deploys are part of finishing a story.
+- **Ask before outward-facing actions** (publishing, deleting, filing issues upstream).
+- **Local until the owner says otherwise.** Build and commit locally (small, organised commits on `main`);
+  push, open a PR, merge or deploy only on the owner's command.
 
 ## Shift Zero: the gate is the CI
 
@@ -33,7 +34,7 @@ against the working tree and blocks the reply if it is stale or failing.
 - **Never edit, skip or loosen an existing test to get green** without the owner's agreement. When behaviour
   changes on purpose, say exactly which test changed and why; record weakened tests in `tests_weakened`.
 - Reply with the verdict line first: `SHIFT ZERO: VERIFIED | L0 — …`.
-- Finish a story with a deploy and `just smoke` against Railway (addresses from `.env`).
+- When the owner ships (PR merged, Railway deploys `main`), run `just smoke` against Railway (addresses from `.env`).
 
 ## Commands
 
