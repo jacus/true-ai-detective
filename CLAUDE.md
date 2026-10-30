@@ -46,7 +46,7 @@ against the working tree and blocks the reply if it is stale or failing.
 
 - `agent.py`: the detective graph (recall → JEV decides → research/ask/consult/conclude → board). Run it to
   draw `docs/graphs/detective.png`.
-- `research.py`: research tools (`@tool`) and filing web findings as evidence. `decision.py`: JEV via
+- `research.py`: research tools (`@tool`, pictures too) and filing web findings as evidence. `decision.py`: JEV via
   AI Gateway. `memory.py`: case memory (pgvector, hybrid search). `board.py`: the case board.
 - `evidence.py` + `evidence_analysis.py` + `photo_analysis.py`: the locker and its analysis graphs.
 - `auth.py`, `cases.py`, `db.py` (RLS per request), `models.py` (+ `migrations/`), `cli.py`, `main.py`.

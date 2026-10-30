@@ -9,10 +9,11 @@
 `recall` searches the case memory (RAG, `memory`) with the client's message. `decide` asks a decision model
 (JEV, `decision`) for the next step: research, ask the client for what's missing, have them confirm an
 assumption (`consult`; a real pause comes with S15), or answer (`conclude`). To research, the chat model
-calls tools (`research.TOOLS`: the case file, web search, web pages, archived pages, domain records, DNS),
-LangGraph's `ToolNode` runs the calls, and `file_findings` files what the web tools found in the evidence
-locker and adds it to what the detective knows. The loop is bounded in code: after MAX_SEARCHES research
-rounds in one turn, the most probable other step is taken. The state is the conversation, what was found,
+calls tools (`research.TOOLS`: the case file, web search, web pages, archived pages, domain records, DNS,
+image search, and looking at a picture with a question), LangGraph's `ToolNode` runs the calls, and
+`file_findings` files what the web tools found in the evidence locker and adds it to what the detective knows.
+The loop is bounded in code: after MAX_SEARCHES research rounds in one turn, the most probable other step is
+taken. The state is the conversation, what was found,
 this turn's tool calls, the decision and the board; all are checkpointed per case, and ag-ui-langgraph
 streams the state to the browser as it changes (CopilotKit shared state).
 Run directly (`just graphs`) to compile it and draw it to docs/graphs/detective.png.
@@ -56,9 +57,11 @@ REPLIES: dict[Action, str] = {  # what each reply node is asked to do
 }
 RESEARCH = (
     "Research what the client's latest message needs that isn't found yet: call one or more tools. Search "
-    "the case file first for what the client may have given you; use the web for what they couldn't."
+    "the case file first for what the client may have given you; use the web for what they couldn't. To "
+    "tell what something in a photo is, look at the photo with a question, find other pictures of the same "
+    "thing or event, and look at those."
 )
-MAX_SEARCHES = 2  # research rounds per client message
+MAX_SEARCHES = 4  # research rounds per client message: enough to find pictures, then look at them
 
 model = init_chat_model(settings.chat_model)
 # Calls the research tools. Not streamed, so none of it reaches the chat; `tool_choice="required"` makes

@@ -28,12 +28,9 @@ from detective.evidence_analysis import analyse, facts_from
 from detective.memory import Chunk
 from detective.models import Case, Evidence, EvidenceKind, Fact, FactKind
 from detective.settings import settings
-from detective.storage import object_key, s3
+from detective.storage import INLINE_TYPES, object_key, s3
 
 router = APIRouter(prefix="/cases/current/evidence", tags=["evidence"])
-
-# Shown in the browser; every other type (HTML, SVG, PDF…) is only ever downloaded.
-INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
 
 def is_document(content_type: str) -> bool:

@@ -9,7 +9,7 @@ It is a learning project, and meant as a **reference for a non-trivial LangChain
 - **A chat with a detective** (Next.js + CopilotKit, over AG-UI) that keeps one case per client, across visits.
 - **An evidence locker**: photos (EXIF + a vision model), PDFs, text, web pages and map pins become facts, each citing its source verbatim.
 - **Case memory (RAG)**: facts and text in pgvector, recalled with hybrid search (vectors + Postgres full text).
-- **An investigation loop**: a decision model (JEV) picks the next step each turn (research, ask, consult or conclude), and the research step calls tools (case file, web search via self-hosted SearXNG, web pages, the Wayback Machine, RDAP, DNS), filing what it finds as evidence with its provenance.
+- **An investigation loop**: a decision model (JEV) picks the next step each turn (research, ask, consult or conclude), and the research step calls tools (case file, web search via self-hosted SearXNG, web pages, the Wayback Machine, RDAP, DNS, image search, and looking at a picture with a question), filing what it finds as evidence with its provenance, the pictures that show what it looks for included.
 - **A live case board**: leads, hypotheses, timeline, contradictions, streamed as shared state.
 - **Isolation in the database**: Postgres row-level security for every client's data, including the libraries' own tables (checkpoints, vectors).
 - **Every run traced** in LangSmith.

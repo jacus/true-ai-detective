@@ -215,17 +215,17 @@ def web_pages() -> Iterator[str]:
 
 
 def app_env(
-    database_url: str, openai_base_url: str, s3_endpoint: str, langsmith: dict[str, str] | None = None
+    database_url: str, openai_base_url: str, s3_endpoint: str, env: dict[str, str] | None = None
 ) -> dict[str, str]:
     """The environment the app (api or CLI) runs with in tests, pointed at the given dependencies.
 
     LangSmith settings from your shell or `.env` are never passed on (tests must not trace with your real
-    key); `langsmith` gives the SDK's own `LANGSMITH_*` variables for a test that traces to the fake.
+    key); `env` adds a test's own variables, e.g. the SDK's `LANGSMITH_*` for a test that traces to the fake.
     """
     inherited = {name: value for name, value in os.environ.items() if not name.startswith("LANGSMITH_")}
     return {
         **inherited,
-        **(langsmith or {}),
+        **(env or {}),
         "DATABASE_URL": database_url,
         # OpenAI SDK's own settings: route model calls to the fake server.
         "OPENAI_BASE_URL": f"{openai_base_url}/v1",
@@ -246,13 +246,13 @@ def app_env(
 
 
 def start_api(
-    database_url: str, openai_base_url: str, s3_endpoint: str, langsmith: dict[str, str] | None = None
+    database_url: str, openai_base_url: str, s3_endpoint: str, env: dict[str, str] | None = None
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Boot the API exactly as in production (`fastapi run`), pointed at the given dependencies."""
     port = _free_port()
     proc = subprocess.Popen(
         ["fastapi", "run", "src/detective/main.py", "--host", "127.0.0.1", "--port", str(port)],
-        env=app_env(database_url, openai_base_url, s3_endpoint, langsmith),
+        env=app_env(database_url, openai_base_url, s3_endpoint, env),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
