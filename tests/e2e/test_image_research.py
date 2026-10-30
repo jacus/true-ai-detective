@@ -77,6 +77,16 @@ def test_the_detective_keeps_web_pictures_that_show_what_it_looks_for(
     events = run_agent(recorded_api, cookie, "What car did the Porsche Tennis Grand Prix winner get?")
 
     assert final_state(events)["steps"] == ["research", "research", "conclude"]
+    # The second round saw the first one's calls and results as they were: the pictures the search found.
+    rounds = [r for r in httpx.get(f"{fake_openai}/received").json()[since:] if r.get("tools")]
+    assert len(rounds) == 2 and len(rounds[0]["messages"]) == 2
+    earlier = rounds[1]["messages"][2:]
+    assert [call["function"]["name"] for call in earlier[0]["tool_calls"]] == [
+        "image_search",
+        "examine_image",
+    ]
+    results = [m["content"] for m in earlier if m["role"] == "tool"]
+    assert len(results) == 2 and any("\nimage: https://" in r and "\nfound on: " in r for r in results)
     # The vision model saw each picture, with the question.
     requests = looked_at(fake_openai, since)
     assert len(requests) == 2 and requests[0]["model"] == "gpt-5.4-nano"
