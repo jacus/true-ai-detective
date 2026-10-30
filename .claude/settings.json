@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "shift-zero": {
+      "source": { "source": "github", "repo": "jacus/shift-zero" }
+    }
+  },
+  "enabledPlugins": {
+    "shift-zero@shift-zero": true
+  }
+}
