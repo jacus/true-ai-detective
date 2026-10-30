@@ -45,10 +45,12 @@ Status legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸️ blocked
 
 ## Prerequisites (your side)
 
-- [x] Docker in WSL
-- [x] OpenAI API key (`.env`)
-- [x] Vercel AI Gateway key + `JEV_MODEL` (`.env`)
-- [x] LangSmith account in the **EU region** + API key in `.env` as `LANGSMITH_API_KEY`
+Keys go in `.env` (copy `.env.example`, which explains every variable).
+
+- [x] Docker (WSL here), uv, just, Node
+- [x] OpenAI API key (`OPENAI_API_KEY`)
+- [x] Vercel AI Gateway key (`AI_GATEWAY_API_KEY`)
+- [x] LangSmith account in the **EU region** + API key (`LANGSMITH_API_KEY`)
 - [ ] A few **known-answer cases** to feed the detective (S8 tests use a synthetic photo; your real ones feed the S19 evals)
 
 ## Architecture
@@ -119,3 +121,22 @@ Current state: Logged-in chat with the detective at https://web-production-7856b
 | ⬜ | **S21 Oversight.** As the owner I'm alerted to suspicious behaviour; deterministic controls block it even when oversight misses. | Injected attack → blocked by controls + alert raised; with oversight disabled → still blocked | Second agent as monitor, alerting, audit queries |
 | ⬜ | **S22 Red-team suite.** One command proves isolation, injection resistance and recovery from failed or resumed workflows. | Suite green via one `just` recipe; includes SSRF: link fetching refuses private, loopback and link-local addresses, re-checked on every redirect (deferred from S9) | Adversarial testing |
 | ⬜ | **S23 DB backups.** As the owner, a lost volume doesn't lose case data. | Restore drill: backup → new DB → app healthy with the restored data | Railway Pro backups or scheduled `pg_dump` to the bucket |
+
+## Future directions
+
+Beyond the board: where this could go once the investigation loop is complete. Ideas, not commitments; each
+becomes stories when it's picked up.
+
+- **A modern UI**: a polished case workspace, with many cases per client and a case picker (D15 already plans for it).
+- **Bring your own keys and models**: clients add their own provider keys (OpenAI, Anthropic, Gemini, local
+  models…) and pick models per task; the detective adapts to whatever keys it is given, enabling only the
+  tools and models those keys unlock (builds on the S14 vault).
+- **Custom MCP servers**: clients install their own MCP tools per case, isolated like the S20 OSINT server.
+- **An editable investigation graph**: clients adjust the detective's graph (nodes, prompts, routing),
+  validated and versioned, safely within the platform's controls.
+- **A headless Claude node** for very complex cases: one graph node that hands a sub-investigation to a
+  sandboxed, headless Claude session (Claude Agent SDK) and files what it finds as evidence.
+- **Security and privacy, deeper**: SSRF protection, sandboxed tools, per-case encryption, redaction,
+  retention, export and deletion on request, a written threat model and a standing red-team suite.
+- **More ways to deploy**: beyond Railway and local, e.g. one-command self-hosting (Docker Compose),
+  Kubernetes (Helm) and other PaaS targets.
