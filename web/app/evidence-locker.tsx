@@ -195,7 +195,16 @@ function EvidenceItem({ item }: { item: Evidence }) {
     case "finding":
       return (
         <span>
-          <a href={file}>🔎 {item.label}</a>
+          {/* A picture the detective kept (examine_image) shows like a photo; text results download. */}
+          {PHOTO_TYPES.includes(item.content_type ?? "") ? (
+            <a href={file} target="_blank" rel="noopener noreferrer">
+              {/* biome-ignore lint/performance/noImgElement: presigned bucket URLs, not optimizable assets */}
+              <img src={file} alt={item.label} className={styles.photo} />
+              <span>🔎 {item.label}</span>
+            </a>
+          ) : (
+            <a href={file}>🔎 {item.label}</a>
+          )}
           <span className={styles.provenance}>
             Found by the detective ({item.tool}),{" "}
             <time dateTime={item.created_at}>{utc(item.created_at)}</time>

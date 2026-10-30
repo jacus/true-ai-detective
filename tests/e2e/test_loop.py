@@ -55,8 +55,8 @@ def test_research_then_conclude(api: str, database_url: str, fake_openai: str) -
     # The case file was searched twice: with the client's words, then with the query the model wrote.
     assert embedded(fake_openai, since) == ["Tell me about the backpack under the bench", "keys library"]
     first, second = decision_requests(fake_openai, since)
-    assert "done for the latest message: 0 of 2" in first["input"]
-    assert "done for the latest message: 1 of 2" in second["input"] and "keys.txt" in second["input"]
+    assert "done for the latest message: 0 of 4" in first["input"]
+    assert "done for the latest message: 1 of 4" in second["input"] and "keys.txt" in second["input"]
     # The answer is the conclude node's, from both searches' findings.
     assert CONCLUDE in chat_request(fake_openai)["messages"][0]["content"]
     lines = recalled(fake_openai)
@@ -76,22 +76,23 @@ def test_ask_and_consult_reply_with_their_own_instruction(
     consult_prompt = chat_request(fake_openai)["messages"][0]["content"]
 
     assert asked["steps"] == ["ask"] and ASK in ask_prompt
+    assert "You did no research for the latest message." in ask_prompt
     assert consulted["steps"] == ["consult"] and CONSULT in consult_prompt
 
 
-def test_the_loop_stops_after_two_searches(api: str, database_url: str, fake_openai: str) -> None:
+def test_the_loop_stops_after_four_searches(api: str, database_url: str, fake_openai: str) -> None:
     cookie = sign_up(api, database_url, unique_email(), PASSWORD)
     add_notes(api, cookie)
     since = received_so_far(fake_openai)
     keen = {"research": 0.7, "ask": 0.05, "consult": 0.2, "conclude": 0.05}
-    queue(fake_openai, *[{"choice": "research", "probabilities": keen}] * 3)
+    queue(fake_openai, *[{"choice": "research", "probabilities": keen}] * 5)
 
     events = run_agent(api, cookie, "Was the man in the grey coat seen anywhere else?")
 
-    # Two searches, then research is off the table: the most probable other step (consult) is taken.
-    assert final_state(events)["steps"] == ["research", "research", "consult"]
-    assert len(decision_requests(fake_openai, since)) == 3
-    assert len(embedded(fake_openai, since)) == 3, "the client's words, then two written queries"
+    # Four searches, then research is off the table: the most probable other step (consult) is taken.
+    assert final_state(events)["steps"] == ["research"] * 4 + ["consult"]
+    assert len(decision_requests(fake_openai, since)) == 5
+    assert len(embedded(fake_openai, since)) == 5, "the client's words, then four written queries"
     assert CONSULT in chat_request(fake_openai)["messages"][0]["content"]
 
 

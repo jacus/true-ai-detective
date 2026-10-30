@@ -23,6 +23,8 @@ TOOLS = [
     "read_archived_page",
     "domain_registration",
     "dns_records",
+    "image_search",
+    "examine_image",
 ]
 # One research round: the model asks for all five at once, and they run in parallel.
 EXAMPLE_COM: list[dict[str, Any]] = [

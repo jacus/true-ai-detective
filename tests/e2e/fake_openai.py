@@ -18,9 +18,10 @@ from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 received: list[dict] = []
-# Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, in a part of a
-# document (a fact quoting its first sentence), and the case board (a timeline entry per numbered fact, a lead
-# for the newest). Tests can queue other answers per schema name.
+# Structured output (non-streamed) is answered per schema: what the "model sees" in a photo, about a picture
+# it is asked a question about, in a part of a document (a fact quoting its first sentence), and the case
+# board (a timeline entry per numbered fact, a lead for the newest). Tests can queue other answers per
+# schema name.
 # A request offering tools (the detective's research) is answered with tool calls: a search of the case file
 # for "the case" unless a test queued its own rounds of calls.
 PHOTO_SIGHTINGS = {
@@ -28,6 +29,12 @@ PHOTO_SIGHTINGS = {
         {"kind": "text", "statement": 'A shop sign reads "PIEKARNIA NOWAK"'},
         {"kind": "object", "statement": "A red bicycle leans against the wall"},
     ]
+}
+# What the "model sees" when the detective looks at a picture with a question (examine_image).
+IMAGE_ANSWER = {
+    "shows_subject": True,
+    "answer": "A white Porsche 911 Carrera S Cabriolet stands on the court.",
+    "clues": [{"kind": "text", "statement": 'The number plate reads "911 Carrera"'}],
 }
 queued: dict[str, list[str]] = {}
 tool_rounds: list[list[dict]] = []
@@ -100,6 +107,7 @@ async def chat_completions(request: Request) -> StreamingResponse | dict:
         answers = {
             "PhotoFacts": lambda: PHOTO_SIGHTINGS,
             "DocumentFacts": lambda: document_facts(payload),
+            "ImageAnswer": lambda: IMAGE_ANSWER,
         }
         default = answers.get(schema, lambda: case_board(payload))()
         waiting = queued.get(schema, [])

@@ -36,7 +36,7 @@ def test_a_detective_run_is_traced_with_its_node_and_model_call(
         database_url,
         fake_openai,
         s3_endpoint,
-        langsmith={
+        env={
             "LANGSMITH_TRACING": "true",
             "LANGSMITH_ENDPOINT": fake_langsmith,
             "LANGSMITH_API_KEY": "lsv2-test-key",
@@ -101,7 +101,7 @@ def test_indexing_evidence_is_traced_with_what_was_embedded(
         database_url,
         fake_openai,
         s3_endpoint,
-        langsmith={
+        env={
             "LANGSMITH_TRACING": "true",
             "LANGSMITH_ENDPOINT": fake_langsmith,
             "LANGSMITH_API_KEY": "lsv2-test-key",

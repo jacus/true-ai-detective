@@ -64,7 +64,7 @@ test *args:
 record-research:
     docker compose up -d --wait searxng
     rm -f tests/e2e/cassettes/research.yaml
-    VCR_RECORD_MODE=new_episodes uv run pytest tests/e2e/test_research.py -q
+    VCR_RECORD_MODE=new_episodes uv run pytest tests/e2e/test_research.py tests/e2e/test_image_research.py -q
 
 # Smoke-test a deployed environment (real nano calls): `just smoke`, or `just smoke https://api-… https://web-…`
 smoke api_url=env("DEPLOYED_API_URL", "") web_url=env("DEPLOYED_WEB_URL", ""):

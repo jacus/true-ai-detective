@@ -24,9 +24,20 @@ def recorded(request: Request) -> Request | None:
     return None if local else request
 
 
+# Headers that say who recorded the cassette (it is public): e.g. Wikimedia echoes the caller's IP address.
+IDENTIFYING = {"x-client-ip", "set-cookie"}
+
+
+def scrubbed(response: dict) -> dict:
+    response["headers"] = {k: v for k, v in response["headers"].items() if k.lower() not in IDENTIFYING}
+    return response
+
+
 recorder = vcr.VCR(
     record_mode=os.environ.get("VCR_RECORD_MODE", "none"),
     before_record_request=recorded,
+    before_record_response=scrubbed,
+    filter_headers=["cookie"],  # and the cookies sent back
     decode_compressed_response=True,  # the cassette is readable text, so what the tools saw can be reviewed
 )
 

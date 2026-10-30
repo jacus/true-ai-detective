@@ -7,6 +7,10 @@ from botocore.config import Config
 
 from detective.settings import settings
 
+# Pictures, shown in the browser (and to the vision model); every other type (HTML, SVG, PDF…) is only ever
+# downloaded.
+INLINE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
 # SigV4 for every presigned URL (boto3 would otherwise sign us-east-1 URLs with the legacy SigV2).
 s3 = boto3.client(
     "s3", config=Config(signature_version="s3v4", s3={"addressing_style": settings.s3_addressing_style})
